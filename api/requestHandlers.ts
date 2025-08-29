@@ -1,19 +1,17 @@
 // Request handlers - self-contained logic for each request type
 
-import fs from 'fs/promises';
-import path from 'path';
 import {
   AskQuestionRequest,
   AskQuestionResponse,
   GetHistoryRequest,
   GetHistoryResponse,
-  SeedDatabaseRequest,
-  SeedDatabaseResponse,
   HealthCheckRequest,
   HealthCheckResponse,
-  Request,
   BaseRequest
 } from './requestTypes';
+import { db, Query } from './database';
+import { documentFetcher } from './documentFetcher';
+import { openaiClient } from './openaiClient';
 
 // Generic request handler interface
 export interface RequestHandler<TRequest extends BaseRequest<TResponse>, TResponse> {
@@ -49,68 +47,124 @@ export class RequestHandlerRegistry {
 class AskQuestionHandler implements RequestHandler<AskQuestionRequest, AskQuestionResponse> {
   async handle(request: AskQuestionRequest): Promise<AskQuestionResponse> {
     const startTime = Date.now();
+    const queryId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     
     try {
-      // Integrated AI query processing
-      const mockSources = [
-        {
-          title: 'Corporations Act 2001',
-          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ca2001172/',
-          jurisdiction: 'Commonwealth of Australia'
-        }
-      ];
+      // Find relevant documents from cache
+      const relevantDocs = await documentFetcher.findDocuments(request.question);
       
-      const mockAnswer = `Based on Australian law, to address your question "${request.question}":
+      if (relevantDocs.length === 0) {
+        return {
+          success: false,
+          error: 'No relevant legal documents found in cache. Please ensure documents are cached first.',
+          queryId,
+          executionTime: Date.now() - startTime
+        };
+      }
 
-This is a simplified response for demonstration purposes. In the full implementation, this would:
+      // Prepare context from relevant documents
+      const context = relevantDocs
+        .slice(0, 3) // Limit to top 3 most relevant documents
+        .map(doc => `DOCUMENT: ${doc.url}\nCONTENT: ${doc.content.substring(0, 2000)}...\n`)
+        .join('\n\n');
 
-1. Search the legal document database for relevant information
-2. Use AI (OpenRouter) to generate a comprehensive legal response
-3. Include proper legal disclaimers and source citations
-4. Provide jurisdiction-specific guidance based on your location (${request.context?.location || 'Australia'})
+      // Generate AI response using OpenAI
+      const aiResponse = await openaiClient.generateAnswer(
+        request.question,
+        context,
+        request.userLocale
+      );
 
-⚠️ DISCLAIMER: This is general information only and should not be considered legal advice. Consult a qualified legal professional for specific legal matters.`;
+      // Prepare sources
+      const sources = relevantDocs.slice(0, 3).map(doc => ({
+        title: this.extractTitleFromUrl(doc.url),
+        url: doc.url,
+        jurisdiction: this.extractJurisdictionFromUrl(doc.url)
+      }));
+
+      // Log query to database
+      await db.exec`
+        INSERT INTO queries (id, question, answer, docs_used, created_at)
+        VALUES (
+          ${queryId},
+          ${request.question},
+          ${aiResponse.answer},
+          ${relevantDocs.slice(0, 3).map(doc => doc.id).join(',')},
+          CURRENT_TIMESTAMP
+        )
+      `;
 
       return {
         success: true,
-        answer: mockAnswer,
-        sources: mockSources,
-        confidence: 0.8,
-        queryId: `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        answer: aiResponse.answer,
+        sources,
+        confidence: 0.9, // High confidence when using real legal documents
+        queryId,
         executionTime: Date.now() - startTime
       };
 
     } catch (error) {
+      console.error('Error in AskQuestionHandler:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        queryId: `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        queryId,
         executionTime: Date.now() - startTime
       };
     }
+  }
+
+  private extractTitleFromUrl(url: string): string {
+    const match = url.match(/\/([^/]+)\/([^/]+)\/$/);
+    if (match) {
+      return match[2].replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, str => str.toUpperCase());
+    }
+    return 'Australian Legal Document';
+  }
+
+  private extractJurisdictionFromUrl(url: string): string {
+    if (url.includes('/cth/')) return 'Commonwealth of Australia';
+    if (url.includes('/nsw/')) return 'New South Wales';
+    if (url.includes('/vic/')) return 'Victoria';
+    if (url.includes('/qld/')) return 'Queensland';
+    if (url.includes('/wa/')) return 'Western Australia';
+    if (url.includes('/sa/')) return 'South Australia';
+    if (url.includes('/tas/')) return 'Tasmania';
+    if (url.includes('/nt/')) return 'Northern Territory';
+    if (url.includes('/act/')) return 'Australian Capital Territory';
+    return 'Australia';
   }
 }
 
 class GetHistoryHandler implements RequestHandler<GetHistoryRequest, GetHistoryResponse> {
   async handle(request: GetHistoryRequest): Promise<GetHistoryResponse> {
     try {
-      // Mock implementation - in real version would read from persistence
-      const queries = [
-        {
-          id: `hist_${Date.now()}`,
-          question: "Sample previous question",
-          answer: "Sample previous answer",
-          timestamp: new Date().toISOString(),
-          confidence: 0.8
-        }
-      ];
+      // Query real database for session history
+      const limit = request.limit || 50;
+      const rows = [];
+      for await (const row of db.query`
+        SELECT * FROM queries 
+        ORDER BY created_at DESC 
+        LIMIT ${limit}
+      `) {
+        rows.push(row);
+      }
+
+      const queries = rows.map(row => ({
+        id: row.id as string,
+        question: row.question as string,
+        answer: (row.answer as string) || 'No answer recorded',
+        timestamp: new Date(row.created_at as string).toISOString(),
+        confidence: 0.9 // Default confidence for real queries
+      }));
 
       return {
         success: true,
-        queries: queries.slice(0, request.limit || 50)
+        queries
       };
 
     } catch (error) {
+      console.error('Error in GetHistoryHandler:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -119,24 +173,6 @@ class GetHistoryHandler implements RequestHandler<GetHistoryRequest, GetHistoryR
   }
 }
 
-class SeedDatabaseHandler implements RequestHandler<SeedDatabaseRequest, SeedDatabaseResponse> {
-  async handle(request: SeedDatabaseRequest): Promise<SeedDatabaseResponse> {
-    try {
-      // Mock implementation - in real version would seed PostgreSQL
-      return {
-        success: true,
-        documentsAdded: 2,
-        totalDocuments: 2
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-}
 
 class HealthCheckHandler implements RequestHandler<HealthCheckRequest, HealthCheckResponse> {
   async handle(request: HealthCheckRequest): Promise<HealthCheckResponse> {
@@ -154,7 +190,6 @@ export const requestHandlerRegistry = new RequestHandlerRegistry();
 // Register all handlers
 requestHandlerRegistry.register('AskQuestion', new AskQuestionHandler());
 requestHandlerRegistry.register('GetHistory', new GetHistoryHandler());
-requestHandlerRegistry.register('SeedDatabase', new SeedDatabaseHandler());
 requestHandlerRegistry.register('HealthCheck', new HealthCheckHandler());
 
 export default requestHandlerRegistry;

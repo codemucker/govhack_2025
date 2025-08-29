@@ -12,8 +12,7 @@
       "Bash(encore *)",
       "Bash(npx *)",
       "Bash(npx tsc:*)",
-      "Bash(encore build)",
-      "Bash(encore run:*)",
+      "Bash(encore *)",
       "Bash(node:*)",
       "Bash(./ask.sh:*)",
       "Bash(npm run typecheck:*)",
@@ -29,7 +28,9 @@
       "Bash(git branch:*)",
       "Bash(git commit:*)",
       "Bash(npm run dev:frontend:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

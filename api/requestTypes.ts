@@ -81,38 +81,6 @@ export interface GetHistoryResponse {
   error?: string;
 }
 
-// Seed Database Request
-export class SeedDatabaseRequest extends BaseRequest<SeedDatabaseResponse> {
-  readonly requestType = 'SeedDatabase';
-  readonly method = 'POST' as const;
-  readonly path = '/api/legal/seed';
-  
-  public documents?: Array<{
-    id: string;
-    url: string;
-    content: string;
-    tags: string[];
-  }>;
-
-  constructor(params: {
-    documents?: Array<{
-      id: string;
-      url: string;
-      content: string;
-      tags: string[];
-    }>;
-  } = {}) {
-    super();
-    this.documents = params.documents;
-  }
-}
-
-export interface SeedDatabaseResponse {
-  success: boolean;
-  documentsAdded?: number;
-  totalDocuments?: number;
-  error?: string;
-}
 
 // Health Check Request
 export class HealthCheckRequest extends BaseRequest<HealthCheckResponse> {
@@ -135,5 +103,4 @@ export interface HealthCheckResponse {
 export type Request = 
   | AskQuestionRequest
   | GetHistoryRequest
-  | SeedDatabaseRequest
   | HealthCheckRequest;

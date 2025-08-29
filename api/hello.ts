@@ -18,13 +18,3 @@ export const hello = api(
   }
 );
 
-// Health check endpoint
-export const health = api(
-  { method: "GET", path: "/api/health" },
-  async (): Promise<{ status: string; uptime: number }> => {
-    return {
-      status: "healthy",
-      uptime: process.uptime()
-    };
-  }
-);

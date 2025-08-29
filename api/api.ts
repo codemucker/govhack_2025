@@ -1,15 +1,47 @@
-// TypeScript-safe single endpoint API
+// Real data pipeline API endpoints
 
 import { api } from "encore.dev/api";
 import { requestHandlerRegistry } from './requestHandlers';
-import { BaseRequest } from './requestTypes';
+import {
+  AskQuestionRequest,
+  AskQuestionResponse,
+  GetHistoryRequest,
+  GetHistoryResponse,
+  HealthCheckResponse
+} from './requestTypes';
 
-// SINGLE ENDPOINT that handles all message types with full TypeScript safety
-export const message = api(
-  { method: "POST", path: "/api/message" },
-  async (request: BaseRequest<any>): Promise<any> => {
-    // Message type determines handler - request contains all HTTP metadata
+// Ask legal question endpoint
+export const askQuestion = api(
+  { method: "POST", path: "/api/legal/ask" },
+  async (req: {
+    question: string;
+    sessionId: string;
+    userLocale?: string;
+    context?: { location?: string };
+  }): Promise<AskQuestionResponse> => {
+    const request = new AskQuestionRequest(req);
     return await requestHandlerRegistry.handle(request);
+  }
+);
+
+// Get query history endpoint
+export const getHistory = api(
+  { method: "GET", path: "/api/legal/history" },
+  async (req: { sessionId: string; limit?: number }): Promise<GetHistoryResponse> => {
+    const request = new GetHistoryRequest(req);
+    return await requestHandlerRegistry.handle(request);
+  }
+);
+
+// Health check endpoint
+export const healthCheck = api(
+  { method: "GET", path: "/api/health" },
+  async (): Promise<HealthCheckResponse> => {
+    return {
+      status: "healthy",
+      version: "1.0.0",
+      timestamp: new Date().toISOString()
+    };
   }
 );
 

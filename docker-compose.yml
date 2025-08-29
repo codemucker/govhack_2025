@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: legalease
+      POSTGRES_USER: legalease
+      POSTGRES_PASSWORD: legalease_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./api/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legalease"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LegalEase Application
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://legalease:legalease_dev@postgres:5432/legalease
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Mount only this repository folder (read-write)
+      - .:/app
+      # Mount logs directory
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 10 &&
+        echo 'Starting LegalEase application...' &&
+        source .env &&
+        encore run --port 4000
+      "
+
+volumes:
+  postgres_data:
