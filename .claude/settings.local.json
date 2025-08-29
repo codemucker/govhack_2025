@@ -1,0 +1,52 @@
+{
+  "project": {
+    "name": "ASCII Name Transliteration Service",
+    "type": "govhack-competition",
+    "deadline": "2025-09-01T17:00:00+10:00"
+  },
+  "permissions": {
+    "allow": ["Bash(mkdir:*)"],
+    "deny": [],
+    "ask": []
+  },
+  "development": {
+    "backend": {
+      "language": "go",
+      "framework": "encore.dev",
+      "database": "postgresql"
+    },
+    "frontend": {
+      "framework": "hugo",
+      "typescript": true,
+      "package_manager": "bun"
+    },
+    "testing": {
+      "frontend": "vitest",
+      "backend": "go-testing",
+      "unit_test_pattern": "*.spec.ts",
+      "validation_test_pattern": "*.test.ts"
+    }
+  },
+  "locale": {
+    "language": "en-AU",
+    "date_format": "DD/MM/YYYY",
+    "time_format": "24h",
+    "units": "metric"
+  },
+  "documentation": {
+    "style": "australian-english",
+    "code_comments": "jsdoc",
+    "readme_locations": "aggregate-folders"
+  },
+  "git": {
+    "branch_strategy": "feature-branches",
+    "commit_style": "conventional",
+    "liberal_commits": true,
+    "squash_on_merge": "develop-only"
+  },
+  "context": {
+    "scratchpad_pattern": "task-specific",
+    "history_format": "iso8601",
+    "track_learnings": true
+  }
+}

@@ -1,0 +1,15 @@
+# asdf tool versions for ASCII Name Transliteration Service
+# Install plugins first:
+asdf plugin add golang
+asdf plugin add nodejs
+asdf plugin add hugo
+asdf plugin add bun
+
+golang 1.24.1
+nodejs 20.18.2
+hugo 0.145.0
+bun 1.2.4
+
+# Optional tools (uncomment if needed):
+# terraform 1.9.0
+# postgres 16.3
