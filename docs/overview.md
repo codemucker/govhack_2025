@@ -1,8 +1,8 @@
-# AU Red Tape Navigator - Overview
+# LegalEase - Overview
 
 ## Executive Summary
 
-The AU Red Tape Navigator is an AI-powered platform that simplifies navigation of Australia's complex regulatory landscape across local, state, and federal jurisdictions. By processing plain-English queries, the system intelligently identifies applicable regulations, routes users to relevant authorities, and provides actionable compliance pathways with direct links to official resources.
+The LegalEase is an AI-powered platform that simplifies navigation of Australia's complex regulatory landscape across local, state, and federal jurisdictions. By processing plain-English queries, the system intelligently identifies applicable regulations, routes users to relevant authorities, and provides actionable compliance pathways with direct links to official resources.
 
 ## The Problem
 
@@ -23,7 +23,7 @@ Australia's regulatory environment presents significant challenges:
 
 ## Our Solution
 
-The AU Red Tape Navigator transforms regulatory compliance from a maze into a guided journey:
+The LegalEase transforms regulatory compliance from a maze into a guided journey:
 
 ### Intelligent Triage System
 - Natural language processing understands queries in plain English

@@ -1,4 +1,4 @@
-# GovHack 2025: AU Red Tape Navigator - Competition Runsheet
+# GovHack 2025: LegalEase - Competition Runsheet
 
 ## Competition Timeline
 

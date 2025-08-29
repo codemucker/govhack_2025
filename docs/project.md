@@ -1,11 +1,11 @@
-# GovHack 2025: AU Red Tape Navigator
+# GovHack 2025: LegalEase
 
 ## Team Details
 
 ### Hackerspace: Democracy Sausage
 
 - Team page: [Democracy Sausage](https://hackerspace.govhack.org/teams/1234)
-- Project page: [AU Red Tape Navigator](https://hackerspace.govhack.org/projects/12345)
+- Project page: [LegalEase](https://hackerspace.govhack.org/projects/12345)
 
 ### Team Members
 
@@ -18,8 +18,8 @@
 
 - **Repository**: [GitHub - govhack_2025](https://github.com/codemucker/govhack_2025)
 - **Video Presentation**: [YouTube Demo](https://youtube.com/watch?v=demo)
-- **Live Demo**: [au-redtape.encoreapi.com](https://au-redtape.encoreapi.com)
-- **API Documentation**: [API Docs](https://au-redtape.encoreapi.com/docs)
+- **Live Demo**: [legalease.encoreapi.com](https://legalease.encoreapi.com)
+- **API Documentation**: [API Docs](https://legalease.encoreapi.com/docs)
 
 ### Data Sources Used
 
@@ -34,7 +34,7 @@
 ## Project Overview
 
 ### Application
-**AU Red Tape Navigator** - An AI-powered platform that transforms complex regulatory compliance into simple, actionable steps for all Australians
+**LegalEase** - An AI-powered platform that transforms complex regulatory compliance into simple, actionable steps for all Australians
 
 ### Challenge Categories
 
@@ -104,7 +104,7 @@ Australia's regulatory landscape is a complex maze that costs businesses and ind
 
 ### Our Solution
 
-The AU Red Tape Navigator transforms this complexity into clarity through:
+The LegalEase transforms this complexity into clarity through:
 
 1. **Intelligent Understanding**: AI that speaks your language, not legalese
 2. **Comprehensive Coverage**: All three levels of government in one place
@@ -219,7 +219,7 @@ The AU Red Tape Navigator transforms this complexity into clarity through:
 
 ### Unique Value Proposition
 
-| Feature | AU Red Tape Navigator | Government Websites | Legal Services | Generic Chatbots |
+| Feature | LegalEase | Government Websites | Legal Services | Generic Chatbots |
 | ------- | -------------------- | ------------------- | -------------- | ---------------- |
 | All jurisdictions | ✅ | ❌ | Partial | ❌ |
 | Conflict resolution | ✅ | ❌ | ✅ | ❌ |
@@ -251,7 +251,7 @@ The AU Red Tape Navigator transforms this complexity into clarity through:
 
 ## Conclusion
 
-The AU Red Tape Navigator represents a paradigm shift in how Australians interact with their government. By combining cutting-edge AI with comprehensive government data, we've created a platform that doesn't just provide information—it empowers action.
+The LegalEase represents a paradigm shift in how Australians interact with their government. By combining cutting-edge AI with comprehensive government data, we've created a platform that doesn't just provide information—it empowers action.
 
 Our solution directly addresses GovHack 2025's core challenges while delivering measurable social and economic impact. We're not just cutting through red tape; we're weaving it into a ladder that helps all Australians climb toward their goals.
 
@@ -266,18 +266,18 @@ Our solution directly addresses GovHack 2025's core challenges while delivering 
 
 ### Call to Action
 
-Join us in transforming Australia's regulatory landscape from a barrier into a bridge. The AU Red Tape Navigator is more than a hackathon project—it's a vision for a more accessible, equitable, and efficient democracy.
+Join us in transforming Australia's regulatory landscape from a barrier into a bridge. The LegalEase is more than a hackathon project—it's a vision for a more accessible, equitable, and efficient democracy.
 
 ---
 
 **Project Links**
-- [Live Demo](https://au-redtape.encoreapi.com)
+- [Live Demo](https://legalease.encoreapi.com)
 - [GitHub Repository](https://github.com/codemucker/govhack_2025)
 - [Video Presentation](https://youtube.com/watch?v=demo)
-- [API Documentation](https://au-redtape.encoreapi.com/docs)
+- [API Documentation](https://legalease.encoreapi.com/docs)
 
 **Contact**
-- Daniel Bryar: daniel@redtapenavigator.au
-- Bert Van Brakel: bert@redtapenavigator.au
+- Daniel Bryar: daniel@legalease.au
+- Bert Van Brakel: bert@legalease.au
 
 *Built with ❤️ for GovHack 2025 by Team Democracy Sausage*

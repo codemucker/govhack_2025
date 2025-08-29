@@ -1,4 +1,4 @@
-# AU Red Tape Navigator — System Spec & Starter (TypeScript + Vue + Encore.dev)
+# LegalEase — System Spec & Starter (TypeScript + Vue + Encore.dev)
 
 A hand-off blueprint for an AI agent to implement a tool that helps users navigate Australian regulatory requirements across **local councils**, **states/territories**, and the **Commonwealth**. The tool **triages a plain-English request**, determines **jurisdiction & legal area**, **routes** to a specialist reasoning profile, and returns a **step-by-step plan** with **direct links** to the responsible agencies/services.
 
@@ -151,7 +151,7 @@ Each profile has: **system guidelines**, **required facts**, **linking policy**,
 ## Backend (TypeScript/Encore.dev) — Modules & Skeleton
 
 ```
-/au-redtape
+/legalease
   /services/api/index.ts (API gateway)
   /services/triage/index.ts (intent/entities, clarifying Qs)
   /services/jurisdiction/index.ts (geo lookup, council/state mapping)
@@ -235,7 +235,7 @@ return compose.toJSON(plan, conflicts, citations);
 
 ```vue
 <template>
-  <div class="red-tape-navigator">
+  <div class="legalease-navigator">
     <div class="search-form">
       <input 
         v-model="query" 
