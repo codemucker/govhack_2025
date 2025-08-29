@@ -18,6 +18,9 @@
   "dependencies": {
     "@vueuse/core": "^10.11.0",
     "axios": "^1.7.0",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
     "pinia": "^2.2.0",
     "vue": "^3.4.0",
     "vue-i18n": "^9.13.0",
@@ -26,6 +29,7 @@
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.10.0",
     "@tsconfig/node20": "^20.1.4",
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^20.14.0",
     "@vitejs/plugin-vue": "^5.1.0",
     "@vitest/ui": "^2.0.0",

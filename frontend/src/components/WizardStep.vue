@@ -257,7 +257,7 @@ const emit = defineEmits<{
   'previous-step': []
 }>()
 
-const { exportResults } = useExport()
+const { exportResults: performExport } = useExport()
 
 // Step data
 const businessType = ref('')
@@ -495,6 +495,7 @@ const goToStep = (stepName: string) => {
 const exportResults = () => {
   // This would integrate with the actual search results
   console.log('Exporting results...')
+  // In a real implementation, this would call performExport with actual data
 }
 
 /**

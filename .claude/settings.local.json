@@ -16,7 +16,10 @@
       "Bash(git add:*)",
       "Bash(git restore:*)",
       "Bash(git merge:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(git commit:*)",
+      "Bash(npm run dev:frontend:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
