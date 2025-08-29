@@ -1,0 +1,403 @@
+/* Print Styles for LegalEase */
+@media print {
+  /* Page Setup */
+  @page {
+    margin: 2cm;
+    size: A4;
+  }
+
+  /* Reset and Base Styles */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    font-family: 'Times New Roman', serif !important;
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+    color: #000 !important;
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide Interactive Elements */
+  .no-print,
+  nav,
+  button:not(.print-keep),
+  .app-header,
+  .wizard-header,
+  .wizard-footer,
+  .step-actions,
+  .action-buttons,
+  .edit-btn,
+  .btn:not(.print-keep),
+  .mobile-nav-overlay,
+  .theme-toggle,
+  .mobile-menu-toggle,
+  .suggestions-dropdown,
+  input[type="text"],
+  input[type="email"],
+  input[type="search"],
+  textarea,
+  select,
+  .search-form,
+  .wizard-container .wizard-footer,
+  .wizard-container .step-actions {
+    display: none !important;
+  }
+
+  /* Keep Essential Content */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Header for Print */
+  .print-header {
+    text-align: center;
+    margin-bottom: 2cm;
+    padding-bottom: 1cm;
+    border-bottom: 2pt solid #059669;
+  }
+
+  .print-header h1 {
+    font-size: 24pt !important;
+    font-weight: bold !important;
+    color: #059669 !important;
+    margin: 0 0 0.5cm 0 !important;
+  }
+
+  .print-header .subtitle {
+    font-size: 14pt !important;
+    color: #666 !important;
+    margin: 0 !important;
+  }
+
+  /* Content Sections */
+  .print-section {
+    margin-bottom: 1.5cm;
+    break-inside: avoid;
+  }
+
+  .print-section h2 {
+    font-size: 16pt !important;
+    font-weight: bold !important;
+    color: #333 !important;
+    border-left: 4pt solid #059669 !important;
+    padding-left: 0.5cm !important;
+    margin: 0 0 0.5cm 0 !important;
+    page-break-after: avoid;
+  }
+
+  .print-section h3 {
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    color: #333 !important;
+    margin: 0.5cm 0 0.3cm 0 !important;
+    page-break-after: avoid;
+  }
+
+  .print-section p {
+    margin: 0 0 0.3cm 0 !important;
+    orphans: 2;
+    widows: 2;
+  }
+
+  /* Search Query Box */
+  .query-summary {
+    background: #f5f5f5 !important;
+    border: 1pt solid #ccc !important;
+    padding: 0.5cm !important;
+    margin: 0.5cm 0 !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+  }
+
+  .query-summary h3 {
+    margin-top: 0 !important;
+    color: #059669 !important;
+  }
+
+  /* Requirements List */
+  .requirements-checklist {
+    margin: 0.5cm 0;
+  }
+
+  .requirement-item {
+    margin-bottom: 1cm !important;
+    padding: 0.5cm !important;
+    border: 1pt solid #ddd !important;
+    border-left: 4pt solid #059669 !important;
+    break-inside: avoid;
+    background: #fafafa !important;
+  }
+
+  .requirement-item h4 {
+    font-size: 13pt !important;
+    font-weight: bold !important;
+    color: #333 !important;
+    margin: 0 0 0.3cm 0 !important;
+  }
+
+  .requirement-meta {
+    font-size: 10pt !important;
+    color: #666 !important;
+    margin: 0.2cm 0 !important;
+  }
+
+  .requirement-meta strong {
+    color: #333 !important;
+  }
+
+  .requirement-description {
+    font-size: 11pt !important;
+    line-height: 1.3 !important;
+    margin: 0.3cm 0 0 0 !important;
+  }
+
+  /* Conflicts Section */
+  .conflicts-section .requirement-item {
+    border-left-color: #dc2626 !important;
+  }
+
+  .conflicts-section h2 {
+    color: #dc2626 !important;
+    border-left-color: #dc2626 !important;
+  }
+
+  .conflict-severity {
+    display: inline-block !important;
+    padding: 0.1cm 0.3cm !important;
+    font-size: 10pt !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+    border-radius: 0 !important;
+    margin-left: 0.3cm !important;
+  }
+
+  .severity-high {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    border: 1pt solid #dc2626 !important;
+  }
+
+  .severity-medium {
+    background: #fef3c7 !important;
+    color: #d97706 !important;
+    border: 1pt solid #d97706 !important;
+  }
+
+  .severity-low {
+    background: #e5e7eb !important;
+    color: #6b7280 !important;
+    border: 1pt solid #6b7280 !important;
+  }
+
+  /* Statistics Grid */
+  .stats-grid {
+    display: flex !important;
+    justify-content: space-around !important;
+    margin: 0.5cm 0 !important;
+    break-inside: avoid;
+  }
+
+  .stat-box {
+    text-align: center !important;
+    border: 1pt solid #ccc !important;
+    padding: 0.5cm !important;
+    min-width: 3cm !important;
+    background: #f9f9f9 !important;
+  }
+
+  .stat-number {
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    color: #059669 !important;
+    display: block !important;
+    margin-bottom: 0.2cm !important;
+  }
+
+  .stat-label {
+    font-size: 10pt !important;
+    color: #666 !important;
+  }
+
+  /* Tables */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 0.5cm 0 !important;
+    break-inside: auto;
+  }
+
+  th, td {
+    border: 1pt solid #ccc !important;
+    padding: 0.3cm !important;
+    text-align: left !important;
+    vertical-align: top !important;
+  }
+
+  th {
+    background: #f5f5f5 !important;
+    font-weight: bold !important;
+    font-size: 11pt !important;
+  }
+
+  td {
+    font-size: 10pt !important;
+  }
+
+  /* Footer */
+  .print-footer {
+    position: fixed;
+    bottom: 1cm;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9pt !important;
+    color: #666 !important;
+    border-top: 1pt solid #ccc !important;
+    padding-top: 0.3cm !important;
+  }
+
+  /* Page Breaks */
+  .page-break {
+    page-break-before: always !important;
+  }
+
+  .avoid-break {
+    break-inside: avoid !important;
+  }
+
+  .break-after {
+    page-break-after: always !important;
+  }
+
+  /* Lists */
+  ul, ol {
+    margin: 0.3cm 0 0.3cm 1cm !important;
+    padding: 0 !important;
+  }
+
+  li {
+    margin-bottom: 0.2cm !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Links */
+  a {
+    color: #333 !important;
+    text-decoration: underline !important;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")" !important;
+    font-size: 9pt !important;
+    color: #666 !important;
+  }
+
+  /* QR Code Placeholder */
+  .qr-code {
+    width: 3cm !important;
+    height: 3cm !important;
+    border: 1pt solid #ccc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 8pt !important;
+    color: #666 !important;
+    background: #f9f9f9 !important;
+    break-inside: avoid;
+  }
+
+  /* Checklist Items */
+  .checklist {
+    margin: 0.5cm 0;
+  }
+
+  .checklist-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    margin-bottom: 0.3cm !important;
+    break-inside: avoid;
+  }
+
+  .checklist-checkbox {
+    width: 0.4cm !important;
+    height: 0.4cm !important;
+    border: 1pt solid #333 !important;
+    margin-right: 0.3cm !important;
+    margin-top: 0.1cm !important;
+    flex-shrink: 0 !important;
+  }
+
+  .checklist-text {
+    flex: 1 !important;
+    font-size: 11pt !important;
+    line-height: 1.3 !important;
+  }
+
+  /* Disclaimer */
+  .disclaimer {
+    background: #f0f0f0 !important;
+    border: 1pt solid #ccc !important;
+    padding: 0.5cm !important;
+    margin: 1cm 0 !important;
+    font-size: 10pt !important;
+    break-inside: avoid;
+  }
+
+  .disclaimer strong {
+    color: #dc2626 !important;
+  }
+
+  /* Logo/Branding */
+  .brand-logo {
+    font-size: 18pt !important;
+    font-weight: bold !important;
+    color: #059669 !important;
+  }
+
+  /* Responsive Print Layout */
+  @page :first {
+    margin-top: 3cm;
+  }
+
+  @page :left {
+    margin-left: 3cm;
+    margin-right: 2cm;
+  }
+
+  @page :right {
+    margin-left: 2cm;
+    margin-right: 3cm;
+  }
+}
+
+/* Print Preview Styles (for screen) */
+.print-preview {
+  background: white;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  margin: 2rem auto;
+  max-width: 21cm;
+  min-height: 29.7cm;
+  padding: 2cm;
+  font-family: 'Times New Roman', serif;
+  font-size: 12pt;
+  line-height: 1.4;
+  color: #000;
+}
+
+.print-preview * {
+  color: inherit !important;
+}
+
+.print-preview .no-print {
+  display: none;
+}
+
+.print-preview .print-only {
+  display: block;
+}

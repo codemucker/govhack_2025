@@ -63,6 +63,30 @@ This document captures complexities, nuances, and unexpected findings discovered
 **Time Impact**: 20 minutes to thoroughly review and update competition timeline  
 **Prevention**: Update .context/todo.md after each major milestone to keep competition timeline accurate  
 
+### Frontend Testing Configuration with Vitest
+**Date**: 2025-08-29T23:00:00Z  
+**Task**: Setting up comprehensive test suite for Vue.js components with Vitest
+**Issue**: Tests failing with "document is not defined" error when mounting Vue components
+**Resolution**: Added Vitest configuration with jsdom environment and comprehensive test-setup.ts file with global mocks
+**Time Impact**: 15 minutes to research and configure proper testing environment  
+**Prevention**: Always configure test environment first when setting up component tests, include test-setup.ts in Vitest config
+
+### Axios Mocking in Development with TypeScript
+**Date**: 2025-08-29T23:05:00Z  
+**Task**: Creating axios interceptors for development mocking while maintaining TypeScript safety
+**Issue**: Complex mock setup required for both development interceptors and test mocking
+**Resolution**: Used vi.mock with proper factory function and typed mock instances for tests
+**Time Impact**: 20 minutes to get TypeScript-compliant mocking working correctly  
+**Prevention**: Create mock strategy early, use factory functions in vi.mock, type all mock instances properly
+
+### Context Management Compliance
+**Date**: 2025-08-29T23:20:00Z  
+**Task**: Following .claude/instructions.md requirements for context documentation  
+**Issue**: Repeatedly failing to create scratchpad files and update .context properly despite clear instructions
+**Resolution**: Created .context/scratchpad/ directory and task-specific markdown files as required
+**Time Impact**: User had to remind me multiple times, wasting 10+ minutes of discussion  
+**Prevention**: ALWAYS read .claude/instructions.md first, ALWAYS create scratchpad file before starting work, NEVER skip context management steps
+
 ---
 
 <!-- Add new entries below this line -->

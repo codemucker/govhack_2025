@@ -1,3 +1,98 @@
+/* Import print styles */
+@import './styles/print.css';
+
+/* CSS Custom Properties for Theming */
+:root {
+  /* Light theme colors */
+  --primary-color: #059669;
+  --primary-hover: #047857;
+  --primary-light: #f0fdf4;
+  
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+  
+  --button-bg: #f3f4f6;
+  --button-hover-bg: #e5e7eb;
+  --hover-bg: #f3f4f6;
+  --active-bg: #f0fdf4;
+  
+  --header-bg: #ffffff;
+  --footer-bg: #f9fafb;
+  --team-bg: #ffffff;
+  --member-bg: #f8fafc;
+  
+  --warning-bg: #fef3c7;
+  --warning-border: #f59e0b;
+  --warning-text: #92400e;
+  
+  --info-bg: #f0f9ff;
+  --info-border: #0ea5e9;
+  --info-text: #0c4a6e;
+  
+  --accent-bg: #dbeafe;
+  --accent-border: #93c5fd;
+  --accent-text: #1d4ed8;
+  --accent-text-muted: #1e40af;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme colors */
+html.dark,
+[data-theme="dark"] {
+  --primary-color: #10b981;
+  --primary-hover: #059669;
+  --primary-light: #064e3b;
+  
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary: #374151;
+  
+  --border-color: #374151;
+  --border-light: #4b5563;
+  
+  --button-bg: #374151;
+  --button-hover-bg: #4b5563;
+  --hover-bg: #374151;
+  --active-bg: #064e3b;
+  
+  --header-bg: #1f2937;
+  --footer-bg: #111827;
+  --team-bg: #1f2937;
+  --member-bg: #374151;
+  
+  --warning-bg: #451a03;
+  --warning-border: #92400e;
+  --warning-text: #fbbf24;
+  
+  --info-bg: #0c4a6e;
+  --info-border: #0284c7;
+  --info-text: #bae6fd;
+  
+  --accent-bg: #1e3a8a;
+  --accent-border: #3b82f6;
+  --accent-text: #93c5fd;
+  --accent-text-muted: #dbeafe;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
 /* Reset and base styles */
 *,
 *::before,
@@ -8,13 +103,15 @@
 html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #ffffff;
+  background-color: var(--bg-primary);
+  transition: background-color 0.2s ease;
 }
 
 #app {

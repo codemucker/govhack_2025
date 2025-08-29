@@ -1,454 +1,424 @@
 <template>
   <div class="search">
-    <h1>Search Regulatory Requirements</h1>
-    
-    <form @submit.prevent="performSearch" class="search-form">
-      <div class="form-group">
-        <label for="query">What would you like to do?</label>
-        <input
-          id="query"
-          v-model="query"
-          type="text"
-          placeholder="e.g., 'open a café in Brisbane' or 'build a fence'"
-          class="form-input"
-        />
-      </div>
+    <div class="search-header">
+      <h1>Search Regulatory Requirements</h1>
+      <p class="search-subtitle">
+        Discover the permits, licences, and regulations that apply to your situation across all levels of Australian government
+      </p>
       
-      <div class="form-group">
-        <label for="address">Address (optional)</label>
-        <input
-          id="address"
-          v-model="address"
-          type="text"
-          placeholder="e.g., '123 Collins St, Melbourne VIC 3000'"
-          class="form-input"
-        />
-      </div>
-      
-      <button type="submit" :disabled="!query || loading" class="btn btn-primary">
-        {{ loading ? 'Searching...' : 'Search Requirements' }}
-      </button>
-    </form>
-
-    <div v-if="result" class="results">
-      <h2>Results</h2>
-      
-      <div class="result-section">
-        <h3>Query Analysis</h3>
-        <div class="analysis-card">
-          <p><strong>Original:</strong> {{ result.query.raw }}</p>
-          <p><strong>Location:</strong> 
-            {{ result.query.location?.address || 'Not specified' }}
-          </p>
-          <div v-if="result.query.assumptions.length">
-            <p><strong>Assumptions:</strong></p>
-            <ul>
-              <li v-for="assumption in result.query.assumptions" :key="assumption">
-                {{ assumption }}
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="result-section">
-        <h3>Jurisdictions</h3>
-        <div class="jurisdiction-grid">
-          <div 
-            v-for="jurisdiction in result.jurisdictions" 
-            :key="jurisdiction.name"
-            class="jurisdiction-card"
-          >
-            <div class="jurisdiction-level">{{ jurisdiction.level }}</div>
-            <div class="jurisdiction-name">{{ jurisdiction.name }}</div>
-            <div class="confidence-bar">
-              <div 
-                class="confidence-fill"
-                :style="{ width: jurisdiction.confidence * 100 + '%' }"
-              ></div>
-            </div>
-            <div class="confidence-text">
-              {{ Math.round(jurisdiction.confidence * 100) }}% confidence
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="result-section">
-        <h3>Requirements</h3>
-        <div class="requirements-list">
-          <div 
-            v-for="requirement in result.requirements" 
-            :key="requirement.title"
-            class="requirement-card"
-          >
-            <h4>{{ requirement.title }}</h4>
-            <p class="requirement-authority">{{ requirement.authority }}</p>
-            
-            <div class="actions-list">
-              <div 
-                v-for="action in requirement.actions" 
-                :key="action.step"
-                class="action-item"
-              >
-                <span class="step-number">{{ action.step }}</span>
-                <span class="step-description">{{ action.desc }}</span>
-                <a 
-                  v-if="action.link" 
-                  :href="action.link" 
-                  target="_blank"
-                  class="step-link"
-                >
-                  View Details
-                </a>
-              </div>
-            </div>
-            
-            <div v-if="requirement.notes.length" class="requirement-notes">
-              <p><strong>Notes:</strong></p>
-              <ul>
-                <li v-for="note in requirement.notes" :key="note">{{ note }}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="result-section">
-        <h3>Contacts</h3>
-        <div class="contacts-list">
-          <div v-for="contact in result.contacts" :key="contact.authority" class="contact-card">
-            <h4>{{ contact.authority }}</h4>
-            <p>{{ contact.type }}</p>
-            <div class="contact-details">
-              <span v-if="contact.phone">📞 {{ contact.phone }}</span>
-              <a :href="contact.url" target="_blank">🌐 Website</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="disclaimer">
-        <p><strong>Disclaimer:</strong> {{ result.disclaimer }}</p>
+      <!-- Search Mode Toggle -->
+      <div class="search-mode-toggle">
+        <label class="mode-option" :class="{ active: !wizardMode }">
+          <input
+            type="radio"
+            :value="false"
+            v-model="wizardMode"
+            name="search-mode"
+            class="mode-radio"
+          />
+          <span class="mode-icon">🔍</span>
+          <span class="mode-text">Quick Search</span>
+        </label>
+        
+        <label class="mode-option" :class="{ active: wizardMode }">
+          <input
+            type="radio"
+            :value="true"
+            v-model="wizardMode"
+            name="search-mode"
+            class="mode-radio"
+          />
+          <span class="mode-icon">🧭</span>
+          <span class="mode-text">Guided Wizard</span>
+        </label>
       </div>
     </div>
 
-    <div v-if="error" class="error">
-      <h3>Error</h3>
-      <p>{{ error }}</p>
+    <!-- Quick Search Mode -->
+    <div v-if="!wizardMode" class="quick-search-mode">
+      <SearchForm 
+        v-model="formData" 
+        :is-loading="loading"
+        @submit="performSearch" 
+      />
+
+      <SearchResults 
+        v-if="result" 
+        :result="result"
+        @export-results="handleExportResults"
+      />
+
+      <div v-if="error" class="error">
+        <div class="error-icon">❌</div>
+        <div class="error-content">
+          <h3>Search Error</h3>
+          <p>{{ error }}</p>
+          <button @click="clearError" class="btn btn-secondary">
+            Try Again
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wizard Mode -->
+    <div v-else class="wizard-mode">
+      <SearchWizard
+        @wizard-complete="handleWizardComplete"
+        @wizard-cancelled="handleWizardCancelled"
+      />
+    </div>
+
+    <!-- Export Dialog -->
+    <ExportDialog
+      :is-open="exportDialogOpen"
+      :search-data="exportData.searchQuery"
+      :results="exportData.results"
+      @close="closeExportDialog"
+      @export-complete="handleExportComplete"
+      @export-error="handleExportError"
+    />
+
+    <!-- Print View (hidden, used for printing) -->
+    <div class="print-view-container" style="display: none;">
+      <PrintView
+        v-if="printData"
+        :search-data="printData.searchQuery"
+        :results="printData.results"
+        ref="printViewRef"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import SearchForm from '../components/SearchForm.vue'
+import SearchResults from '../components/SearchResults.vue'
+import SearchWizard from '../components/SearchWizard.vue'
+import ExportDialog from '../components/ExportDialog.vue'
+import PrintView from '../components/PrintView.vue'
+import { useTriageSearch, type TriageResponse } from '../composables/useApi'
+import type { ExportData } from '../composables/useExport'
 
-const query = ref('')
-const address = ref('')
+// Search mode
+const wizardMode = ref(false)
+
+// Search state
+const formData = ref({
+  query: '',
+  address: ''
+})
+
 const loading = ref(false)
-const result = ref<any>(null)
+const result = ref<TriageResponse | null>(null)
 const error = ref('')
 
-const performSearch = async () => {
-  if (!query.value.trim()) return
+// Export state
+const exportDialogOpen = ref(false)
+const exportData = ref<ExportData>({
+  searchQuery: {
+    query: '',
+    address: '',
+    businessType: '',
+    timestamp: Date.now()
+  },
+  results: {
+    requirements: [],
+    conflicts: [],
+    recommendations: []
+  },
+  metadata: {
+    exportedAt: Date.now(),
+    exportedBy: 'LegalEase User',
+    version: '1.0'
+  }
+})
+
+// Print state
+const printData = ref<ExportData | null>(null)
+const printViewRef = ref()
+
+// Use the triage search composable
+const { performTriage } = useTriageSearch()
+
+/**
+ * Perform search with form data
+ * @param data - Form data containing query and address
+ */
+const performSearch = async (data: { query: string; address: string }) => {
+  if (!data.query.trim()) return
   
   loading.value = true
   error.value = ''
   result.value = null
   
   try {
-    const response = await fetch('/api/v1/triage/demo-public', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: query.value,
-        address: address.value || undefined,
-      }),
+    result.value = await performTriage({
+      query: data.query,
+      address: data.address || undefined,
     })
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
-    
-    result.value = await response.json()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred'
   } finally {
     loading.value = false
   }
 }
+
+/**
+ * Handle wizard completion
+ */
+const handleWizardComplete = async (wizardData: any) => {
+  // Convert wizard data to search query and perform search
+  const searchQuery = {
+    query: wizardData.searchData.query || `${wizardData.searchData.businessType} business at ${wizardData.searchData.address}`,
+    address: wizardData.searchData.address || ''
+  }
+  
+  await performSearch(searchQuery)
+  
+  // Switch back to quick search mode to show results
+  wizardMode.value = false
+}
+
+/**
+ * Handle wizard cancellation
+ */
+const handleWizardCancelled = () => {
+  wizardMode.value = false
+}
+
+/**
+ * Handle export results request
+ */
+const handleExportResults = () => {
+  if (!result.value) return
+  
+  // Convert search result to export data format
+  exportData.value = {
+    searchQuery: {
+      query: formData.value.query,
+      address: formData.value.address,
+      businessType: result.value.businessContext?.type || '',
+      timestamp: Date.now()
+    },
+    results: {
+      requirements: result.value.requirements.map(req => ({
+        title: req.title,
+        authority: req.authority,
+        jurisdiction: req.jurisdiction,
+        status: req.status || 'Required',
+        description: req.description,
+        estimatedTime: req.estimatedTime || 'Contact authority',
+        estimatedCost: req.estimatedCost || 'Contact authority'
+      })),
+      conflicts: result.value.conflicts?.map(conflict => ({
+        title: conflict.title,
+        description: conflict.description,
+        severity: conflict.severity as 'low' | 'medium' | 'high'
+      })) || [],
+      recommendations: result.value.recommendations?.map((rec, index) => ({
+        title: rec.title || `Recommendation ${index + 1}`,
+        description: rec.description,
+        priority: rec.priority || index + 1
+      })) || []
+    },
+    metadata: {
+      exportedAt: Date.now(),
+      exportedBy: 'LegalEase User',
+      version: '1.0'
+    }
+  }
+  
+  exportDialogOpen.value = true
+}
+
+/**
+ * Close export dialog
+ */
+const closeExportDialog = () => {
+  exportDialogOpen.value = false
+}
+
+/**
+ * Handle export completion
+ */
+const handleExportComplete = (filename: string, format: string) => {
+  console.log(`Export completed: ${filename} (${format})`)
+  // Could show a success toast here
+}
+
+/**
+ * Handle export error
+ */
+const handleExportError = (error: string) => {
+  console.error('Export error:', error)
+  // Could show an error toast here
+}
+
+/**
+ * Clear error state and allow retry
+ */
+const clearError = () => {
+  error.value = ''
+}
 </script>
 
 <style scoped>
 .search {
-  max-width: 800px;
-  margin: 0 auto;
+  padding: 2rem 1rem;
+  min-height: 100vh;
 }
 
-.search h1 {
+.search-header {
   text-align: center;
+  margin-bottom: 3rem;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.search-header h1 {
   color: #1f2937;
-  margin-bottom: 2rem;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
-.search-form {
-  background: #f9fafb;
-  padding: 2rem;
-  border-radius: 0.75rem;
-  margin-bottom: 2rem;
+.search-subtitle {
+  color: #6b7280;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto 2rem auto;
 }
 
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #374151;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #059669;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #047857;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.results {
+/* Search Mode Toggle */
+.search-mode-toggle {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
   margin-top: 2rem;
 }
 
-.result-section {
-  margin-bottom: 2rem;
-}
-
-.result-section h3 {
-  color: #1f2937;
-  margin-bottom: 1rem;
-  border-bottom: 2px solid #059669;
-  padding-bottom: 0.5rem;
-}
-
-.analysis-card {
-  background: #f3f4f6;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-}
-
-.jurisdiction-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-}
-
-.jurisdiction-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 1rem;
-}
-
-.jurisdiction-level {
-  font-size: 0.875rem;
-  color: #6b7280;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.jurisdiction-name {
-  font-weight: 600;
-  margin: 0.5rem 0;
-}
-
-.confidence-bar {
-  height: 4px;
-  background: #e5e7eb;
-  border-radius: 2px;
-  margin: 0.5rem 0;
-}
-
-.confidence-fill {
-  height: 100%;
-  background: #059669;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.confidence-text {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.requirements-list {
+.mode-option {
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.requirement-card {
-  background: white;
-  border: 1px solid #e5e7eb;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border: 2px solid var(--border-color, #e5e7eb);
   border-radius: 0.75rem;
-  padding: 1.5rem;
+  background: var(--bg-secondary, #f9fafb);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary, #6b7280);
 }
 
-.requirement-card h4 {
-  color: #1f2937;
-  margin-bottom: 0.5rem;
+.mode-option:hover {
+  border-color: var(--primary-color, #059669);
+  background: var(--hover-bg, #f3f4f6);
+  color: var(--text-primary, #1f2937);
 }
 
-.requirement-authority {
-  color: #6b7280;
-  font-style: italic;
-  margin-bottom: 1rem;
+.mode-option.active {
+  border-color: var(--primary-color, #059669);
+  background: var(--active-bg, #f0fdf4);
+  color: var(--primary-color, #059669);
 }
 
-.actions-list {
-  margin-bottom: 1rem;
+.mode-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #f3f4f6;
+.mode-icon {
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
-.step-number {
-  background: #059669;
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.step-description {
-  flex: 1;
-}
-
-.step-link {
-  color: #059669;
-  text-decoration: none;
+.mode-text {
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 
-.step-link:hover {
-  text-decoration: underline;
-}
-
-.requirement-notes {
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
-  border-radius: 0.5rem;
-  padding: 1rem;
-}
-
-.contacts-list {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-}
-
-.contact-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
-}
-
-.contact-card h4 {
-  margin-bottom: 0.5rem;
-}
-
-.contact-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.contact-details a {
-  color: #059669;
-  text-decoration: none;
-}
-
-.contact-details a:hover {
-  text-decoration: underline;
-}
-
-.disclaimer {
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 0.5rem;
-  padding: 1rem;
+/* Mode Content */
+.quick-search-mode,
+.wizard-mode {
   margin-top: 2rem;
 }
 
 .error {
   background: #fee2e2;
   border: 1px solid #ef4444;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-top: 2rem;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin: 2rem auto;
+  max-width: 600px;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.error-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-content h3 {
   color: #dc2626;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+}
+
+.error-content p {
+  color: #dc2626;
+  margin: 0 0 1rem 0;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
 }
 
 @media (max-width: 768px) {
-  .search-form {
+  .search {
+    padding: 1rem 0.5rem;
+  }
+  
+  .search-header h1 {
+    font-size: 2rem;
+  }
+  
+  .search-subtitle {
+    font-size: 1rem;
+  }
+  
+  .error {
+    margin: 1rem;
     padding: 1rem;
   }
   
-  .action-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  .jurisdiction-grid,
-  .contacts-list {
-    grid-template-columns: 1fr;
+  .error-content h3 {
+    font-size: 1rem;
   }
 }
 </style>

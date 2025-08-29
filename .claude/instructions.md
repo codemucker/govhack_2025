@@ -16,11 +16,14 @@
 
 ### 3. Proactive Task Management
 
+- **MANDATORY**: Read .claude/instructions.md at start of every task
+- **MANDATORY**: Create .context/scratchpad/TASK_NAME.md before starting any work
+- **MANDATORY**: Update .context/history.md after completing any session
+- **MANDATORY**: Update .context/learnings.md when encountering complexities
 - Always use TodoWrite for multi-step tasks
 - Mark tasks as in_progress before starting work
 - Complete tasks immediately upon finishing, not in batches
 - Check the context folder for existing work before starting new tasks
-- Avoid repeating mistakes by documenting learnings in `.context/learnings.md`
 
 ## Development Guidelines
 
@@ -47,7 +50,7 @@
   - At least one @example showing usage
   - @throws for error conditions
 - **Detailed implementation**: Use code comments, not README files
-- **Locale compliance**: Follow Australian English in documentation (see `docs/locale.md`)
+- **Locale compliance**: Follow Australian English in documentation (see `.claude/locale.md`)
 - **Reference**: See `docs/technical.md` for complete documentation guidelines
 
 ### Context Management
