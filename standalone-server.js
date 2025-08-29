@@ -20,8 +20,211 @@ const mockDB = {
   queries: []
 };
 
-// Mock document fetcher
+// AustLII Document Discovery System
+class AustLIIDiscovery {
+  constructor() {
+    // AustLII URL patterns for different jurisdictions and document types
+    this.urlPatterns = {
+      // Commonwealth (Federal)
+      cth: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/',
+        regs: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_reg/'
+      },
+      // States
+      nsw: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/',
+        regs: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/'
+      },
+      qld: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/',
+        regs: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/'
+      },
+      vic: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/',
+        regs: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/'
+      },
+      wa: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/'
+      },
+      sa: {
+        acts: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/'
+      }
+    };
+
+    // Legal topic mappings to likely document names/patterns
+    this.topicMappings = {
+      'fence': ['property', 'neighbour', 'boundary', 'dividing', 'fences', 'planning', 'environmental'],
+      'neighbour': ['neighbour', 'neighbor', 'disputes', 'property', 'residential', 'planning'],
+      'property': ['property', 'land', 'real', 'conveyancing', 'title', 'planning', 'environmental'],
+      'business': ['corporations', 'business', 'company', 'partnership', 'trade', 'consumer'],
+      'planning': ['planning', 'development', 'environmental', 'building', 'construction'],
+      'food': ['food', 'safety', 'standards', 'health', 'hygiene'],
+      'consumer': ['consumer', 'trade', 'practices', 'competition', 'fair'],
+      'employment': ['employment', 'workplace', 'industrial', 'work', 'safety'],
+      'liquor': ['liquor', 'alcohol', 'licensing', 'hospitality', 'gaming']
+    };
+  }
+
+  // Intelligent document discovery based on question content and location
+  async discoverRelevantDocuments(question, location) {
+    const discoveries = [];
+    
+    // Extract jurisdiction from location
+    const jurisdiction = this.extractJurisdiction(location);
+    
+    // Extract legal topics from question
+    const topics = this.extractTopics(question);
+    
+    console.log(`🔍 Discovering documents for topics: ${topics.join(', ')} in jurisdiction: ${jurisdiction}`);
+    
+    for (const topic of topics) {
+      const urls = this.generatePossibleUrls(jurisdiction, topic);
+      for (const url of urls) {
+        discoveries.push(url);
+      }
+    }
+    
+    return discoveries;
+  }
+
+  // NEW: LLM-powered document discovery using smart analysis
+  async discoverRelevantDocumentsWithAnalysis(analysis) {
+    const discoveries = [];
+    const { jurisdiction, legal_areas, keywords, document_types, alternative_terms } = analysis;
+    
+    console.log(`🎯 Using LLM analysis: jurisdiction=${jurisdiction}, areas=${legal_areas.join(',')}, keywords=${keywords.join(',')}`);
+    
+    const patterns = this.urlPatterns[jurisdiction] || this.urlPatterns['cth'];
+    
+    // Generate URLs based on LLM-provided keywords and legal areas
+    const allTerms = [...keywords, ...alternative_terms, ...legal_areas];
+    
+    for (const term of allTerms) {
+      const cleanTerm = term.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+      
+      // Generate possible document URLs based on AustLII patterns
+      const possibleNames = [
+        // Known working patterns
+        `ca2001172`, // Corporations Act 2001
+        `epaaa1979389`, // NSW Environmental Planning Act
+        `fsanza1991472`, // Food Standards Act
+        `la2007107`, // NSW Liquor Act
+        `cca2010265`, // Competition and Consumer Act
+        
+        // Generated patterns based on LLM keywords
+        `${cleanTerm}a1974`, `${cleanTerm}a1999`, `${cleanTerm}a2001`,
+        `${cleanTerm}a2010`, `${cleanTerm}a2020`, `${cleanTerm}da1999`,
+        `${cleanTerm}ra2010`, `pa${cleanTerm}1997`, `na${cleanTerm}1959`,
+        
+        // Document type specific patterns
+        ...(document_types.includes('act') ? [`${cleanTerm}act`, `${cleanTerm}a`] : []),
+        ...(document_types.includes('regulation') ? [`${cleanTerm}reg`, `${cleanTerm}r`] : []),
+        
+        // Legal area specific patterns  
+        ...(legal_areas.includes('property') ? [`pa1974175`, `conveyancinga2001`] : []),
+        ...(legal_areas.includes('corporate') ? [`ca2001172`, `businessnamesact`] : []),
+        ...(legal_areas.includes('consumer') ? [`cca2010265`, `fairtrading`] : [])
+      ];
+
+      for (const docName of possibleNames) {
+        if (patterns.acts) {
+          discoveries.push(`${patterns.acts}${docName}/`);
+        }
+        if (patterns.regs && document_types.includes('regulation')) {
+          discoveries.push(`${patterns.regs}${docName}/`);
+        }
+      }
+    }
+    
+    // Remove duplicates and limit results
+    const uniqueDiscoveries = [...new Set(discoveries)];
+    return uniqueDiscoveries.slice(0, 50); // Limit to reasonable number
+  }
+
+  extractJurisdiction(location) {
+    if (!location) return 'cth'; // Default to Commonwealth
+    
+    const loc = location.toLowerCase();
+    if (loc.includes('qld') || loc.includes('queensland') || loc.includes('sunshine coast') || loc.includes('brisbane') || loc.includes('gold coast')) return 'qld';
+    if (loc.includes('nsw') || loc.includes('new south wales') || loc.includes('sydney')) return 'nsw';
+    if (loc.includes('vic') || loc.includes('victoria') || loc.includes('melbourne')) return 'vic';
+    if (loc.includes('wa') || loc.includes('western australia') || loc.includes('perth')) return 'wa';
+    if (loc.includes('sa') || loc.includes('south australia') || loc.includes('adelaide')) return 'sa';
+    if (loc.includes('tas') || loc.includes('tasmania') || loc.includes('hobart')) return 'tas';
+    if (loc.includes('nt') || loc.includes('northern territory') || loc.includes('darwin')) return 'nt';
+    if (loc.includes('act') || loc.includes('australian capital territory') || loc.includes('canberra')) return 'act';
+    
+    return 'cth'; // Default to Commonwealth
+  }
+
+  extractTopics(question) {
+    const topics = [];
+    const questionLower = question.toLowerCase();
+    
+    for (const [topic, keywords] of Object.entries(this.topicMappings)) {
+      if (keywords.some(keyword => questionLower.includes(keyword))) {
+        topics.push(topic);
+      }
+    }
+    
+    // If no specific topics found, try to infer from common legal terms
+    if (topics.length === 0) {
+      if (questionLower.includes('law') || questionLower.includes('legal')) {
+        topics.push('property'); // Default fallback
+      }
+    }
+    
+    return topics.length > 0 ? topics : ['property']; // Always return at least one topic
+  }
+
+  generatePossibleUrls(jurisdiction, topic) {
+    const urls = [];
+    const patterns = this.urlPatterns[jurisdiction];
+    
+    if (!patterns) return urls;
+
+    const keywords = this.topicMappings[topic] || [topic];
+    
+    // Generate possible document URLs based on common AustLII naming patterns
+    for (const keyword of keywords) {
+      // Common patterns for AustLII URLs (including known working URLs)
+      const possibleNames = [
+        `ca2001172`, // Corporations Act 2001 (known working)
+        `epaaa1979389`, // NSW Environmental Planning Act (known working) 
+        `fsanza1991472`, // Food Standards Act (known working)
+        `la2007107`, // NSW Liquor Act (known working)
+        `cca2010265`, // Competition and Consumer Act (known working)
+        // Generated patterns
+        `${keyword}a1974`, // Property Act 1974
+        `${keyword}a2001`, // Various 2001 acts
+        `${keyword}a1999`, // Various 1999 acts
+        `${keyword}da1999`, // Disputes Act 1999
+        `${keyword}ra2010`, // Resolution Act 2010
+        `na1959264`, // Neighbourhood specific
+        `pa1997175`, // Property specific
+      ];
+
+      for (const docName of possibleNames) {
+        if (patterns.acts) {
+          urls.push(`${patterns.acts}${docName}/`);
+        }
+        if (patterns.regs) {
+          urls.push(`${patterns.regs}${docName}/`);
+        }
+      }
+    }
+    
+    return urls;
+  }
+}
+
+// Enhanced document fetcher with lazy ingestion
 class StandaloneDocumentFetcher {
+  constructor() {
+    this.discovery = new AustLIIDiscovery();
+    this.queryAnalyzer = new QueryAnalyzer();
+  }
+
   async fetchDocument(url) {
     console.log(`Fetching document from: ${url}`);
     
@@ -106,9 +309,208 @@ class StandaloneDocumentFetcher {
       doc.content.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }
+
+  // NEW: Lazy ingestion with LLM-powered discovery - discover and fetch relevant documents on-the-fly
+  async findOrDiscoverDocuments(question, location, maxAttempts = 3) {
+    console.log(`🔍 Finding or discovering documents for: "${question}" in ${location || 'Australia'}`);
+    
+    // First, check if we have any relevant cached documents
+    const cachedDocs = await this.findDocuments(question);
+    
+    if (cachedDocs.length > 0) {
+      console.log(`✅ Found ${cachedDocs.length} cached documents`);
+      return cachedDocs;
+    }
+    
+    console.log(`📥 No cached documents found. Using LLM analysis for smart discovery...`);
+    
+    // Multi-attempt discovery with LLM-powered keyword refinement
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`🧠 Discovery attempt ${attempt}/${maxAttempts}`);
+      
+      // Use LLM to analyze query and generate smart keywords
+      const analysis = await this.queryAnalyzer.analyzeQuery(question, location, attempt);
+      
+      // Discover potentially relevant documents using LLM analysis
+      const discoveredUrls = await this.discovery.discoverRelevantDocumentsWithAnalysis(analysis);
+      console.log(`🔍 Discovered ${discoveredUrls.length} potential document URLs using LLM analysis`);
+      
+      // Try to fetch the most promising documents (limit to avoid overload)
+      const maxDocsToFetch = 3;
+      const successfullyFetched = [];
+      
+      for (let i = 0; i < Math.min(discoveredUrls.length, maxDocsToFetch); i++) {
+        const url = discoveredUrls[i];
+        try {
+          console.log(`📄 Attempting to fetch: ${url}`);
+          const doc = await this.fetchDocument(url);
+          
+          // Check if the fetched document is actually relevant
+          if (this.isDocumentRelevant(doc.content, question)) {
+            successfullyFetched.push({
+              id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              url: doc.url,
+              content: doc.content,
+              tags: doc.tags.join(','),
+              created_at: new Date()
+            });
+            console.log(`✅ Successfully fetched and validated: ${url}`);
+          } else {
+            console.log(`⚠️ Document not relevant for question: ${url}`);
+          }
+        } catch (error) {
+          console.log(`❌ Failed to fetch ${url}: ${error.message}`);
+          continue; // Try next URL
+        }
+      }
+      
+      // If we found documents, return them immediately
+      if (successfullyFetched.length > 0) {
+        console.log(`🎉 Successfully discovered and ingested ${successfullyFetched.length} new documents on attempt ${attempt}!`);
+        return successfullyFetched;
+      }
+      
+      // If this isn't the last attempt, continue with refined keywords
+      if (attempt < maxAttempts) {
+        console.log(`⚡ Attempt ${attempt} found no documents. Refining search terms for attempt ${attempt + 1}...`);
+        continue;
+      }
+    }
+    
+    console.log(`😞 No relevant documents could be discovered after ${maxAttempts} attempts with refined keywords`);
+    return [];
+  }
+
+  // Check if a document is actually relevant to the question
+  isDocumentRelevant(content, question) {
+    const questionWords = question.toLowerCase().split(/\s+/).filter(word => word.length > 3);
+    const contentLower = content.toLowerCase();
+    
+    // Count how many question words appear in the document
+    const matchingWords = questionWords.filter(word => contentLower.includes(word));
+    
+    // Consider relevant if at least 20% of meaningful words match, or if it's a legal document
+    const relevanceThreshold = Math.max(1, Math.floor(questionWords.length * 0.2));
+    const hasLegalIndicators = contentLower.includes('act') || contentLower.includes('section') || contentLower.includes('regulation');
+    
+    return matchingWords.length >= relevanceThreshold || hasLegalIndicators;
+  }
 }
 
-// Mock OpenAI client
+// Intelligent Query Analyzer using cheap LLM
+class QueryAnalyzer {
+  constructor() {
+    this.apiKey = process.env.OPENAI_API_KEY;
+  }
+
+  async analyzeQuery(question, location, attempt = 1) {
+    if (!this.apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is required');
+    }
+
+    const prompt = `You are an Australian legal research assistant. Analyze this legal question and extract relevant search terms for finding Australian legal documents.
+
+QUESTION: "${question}"
+LOCATION: "${location || 'Australia'}"
+ATTEMPT: ${attempt}/3
+
+Extract:
+1. JURISDICTION: Which Australian jurisdiction applies (qld, nsw, vic, wa, sa, tas, nt, act, or cth for federal)
+2. LEGAL_AREAS: Primary legal areas (e.g., property law, corporate law, consumer law, planning law, etc.)
+3. KEYWORDS: Specific legal terms and concepts to search for
+4. DOCUMENT_TYPES: Types of legal documents needed (acts, regulations, codes, etc.)
+5. ALTERNATIVE_TERMS: Other ways to describe the same legal concepts
+
+${attempt > 1 ? `
+PREVIOUS ATTEMPTS FAILED: The previous keywords didn't find relevant documents. 
+Try broader, more general legal terms or alternative ways to describe the legal issue.
+` : ''}
+
+Respond in JSON format:
+{
+  "jurisdiction": "qld",
+  "legal_areas": ["property law", "neighbour disputes"],  
+  "keywords": ["fence", "boundary", "dividing fence", "neighbour disputes", "property boundaries"],
+  "document_types": ["act", "regulation"],
+  "alternative_terms": ["fencing", "boundary disputes", "adjoining properties", "residential property"]
+}`;
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', // Cheap model for analysis
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert in Australian legal taxonomy. Extract precise search terms for legal document discovery.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 400
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      try {
+        const analysis = JSON.parse(content);
+        console.log(`🧠 LLM Analysis (attempt ${attempt}):`, analysis);
+        return analysis;
+      } catch (parseError) {
+        console.error('Failed to parse LLM analysis:', content);
+        // Fallback to basic analysis
+        return this.createFallbackAnalysis(question, location);
+      }
+
+    } catch (error) {
+      console.error('Query analysis error:', error);
+      return this.createFallbackAnalysis(question, location);
+    }
+  }
+
+  createFallbackAnalysis(question, location) {
+    const questionLower = question.toLowerCase();
+    
+    // Basic jurisdiction detection
+    let jurisdiction = 'cth';
+    if (location) {
+      const loc = location.toLowerCase();
+      if (loc.includes('qld') || loc.includes('queensland') || loc.includes('sunshine coast')) jurisdiction = 'qld';
+      else if (loc.includes('nsw') || loc.includes('sydney')) jurisdiction = 'nsw';
+      else if (loc.includes('vic') || loc.includes('melbourne')) jurisdiction = 'vic';
+    }
+
+    // Basic keyword extraction
+    const keywords = [];
+    if (questionLower.includes('fence')) keywords.push('fence', 'boundary', 'dividing fence');
+    if (questionLower.includes('business')) keywords.push('business', 'corporation', 'company');
+    if (questionLower.includes('property')) keywords.push('property', 'land', 'real estate');
+
+    return {
+      jurisdiction,
+      legal_areas: ['general law'],
+      keywords: keywords.length > 0 ? keywords : ['law'],
+      document_types: ['act', 'regulation'],
+      alternative_terms: keywords.length > 0 ? keywords : ['legal']
+    };
+  }
+}
+
+// Enhanced OpenAI client with two-tier LLM system
 class StandaloneOpenAIClient {
   async generateAnswer(question, context, userLocale = 'en-AU') {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -143,7 +545,7 @@ Please provide a clear, practical answer that helps the user understand their ob
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o', // Using powerful LLM for document analysis and response generation
           messages: [
             {
               role: 'system',
@@ -259,13 +661,14 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
-    // Find relevant documents
-    const relevantDocs = await documentFetcher.findDocuments(question);
+    // Find relevant documents OR discover them on-the-fly
+    const location = context?.location;
+    const relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location);
     
     if (relevantDocs.length === 0) {
       return res.json({
         success: false,
-        error: 'No relevant legal documents found in cache. Please cache documents first using /api/cache-documents',
+        error: 'No relevant legal documents could be found or discovered. The system attempted to discover documents from AustLII but none were available or relevant to your question.',
         queryId,
         executionTime: Date.now() - startTime
       });
