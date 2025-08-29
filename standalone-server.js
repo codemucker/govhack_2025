@@ -7,6 +7,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
 
 // Load environment variables
 dotenv.config();
@@ -311,38 +313,52 @@ class StandaloneDocumentFetcher {
   }
 
   // NEW: Lazy ingestion with LLM-powered discovery - discover and fetch relevant documents on-the-fly
-  async findOrDiscoverDocuments(question, location, maxAttempts = 3) {
-    console.log(`🔍 Finding or discovering documents for: "${question}" in ${location || 'Australia'}`);
+  async findOrDiscoverDocuments(question, location, maxAttempts = 3, eventTracker = null) {
+    const log = (msg) => {
+      console.log(msg);
+      if (eventTracker) eventTracker.addEvent('document_search', msg.replace(/[🔍📥🧠🎯📄✅❌⚡😞🎉]/g, '').trim());
+    };
+    
+    log(`🔍 Finding or discovering documents for: "${question}" in ${location || 'Australia'}`);
+    if (eventTracker) eventTracker.addEvent('search_started', 'Starting document search and discovery', { question, location });
     
     // First, check if we have any relevant cached documents
     const cachedDocs = await this.findDocuments(question);
     
     if (cachedDocs.length > 0) {
-      console.log(`✅ Found ${cachedDocs.length} cached documents`);
+      log(`✅ Found ${cachedDocs.length} cached documents`);
+      if (eventTracker) eventTracker.addEvent('cache_hit', `Found ${cachedDocs.length} cached documents`, { documentsFound: cachedDocs.length });
       return cachedDocs;
     }
     
-    console.log(`📥 No cached documents found. Using LLM analysis for smart discovery...`);
+    log(`📥 No cached documents found. Using LLM analysis for smart discovery...`);
+    if (eventTracker) eventTracker.addEvent('cache_miss', 'No cached documents found, starting intelligent discovery');
     
     // Multi-attempt discovery with LLM-powered keyword refinement
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`🧠 Discovery attempt ${attempt}/${maxAttempts}`);
+      log(`🧠 Discovery attempt ${attempt}/${maxAttempts}`);
+      if (eventTracker) eventTracker.addEvent('llm_analysis_start', `Starting LLM analysis attempt ${attempt}/${maxAttempts}`, { attempt, maxAttempts });
       
       // Use LLM to analyze query and generate smart keywords
       const analysis = await this.queryAnalyzer.analyzeQuery(question, location, attempt);
+      if (eventTracker) eventTracker.addEvent('llm_analysis_complete', `LLM analysis completed`, { analysis });
       
       // Discover potentially relevant documents using LLM analysis
       const discoveredUrls = await this.discovery.discoverRelevantDocumentsWithAnalysis(analysis);
-      console.log(`🔍 Discovered ${discoveredUrls.length} potential document URLs using LLM analysis`);
+      log(`🔍 Discovered ${discoveredUrls.length} potential document URLs using LLM analysis`);
+      if (eventTracker) eventTracker.addEvent('urls_discovered', `Discovered ${discoveredUrls.length} potential document URLs`, { urlCount: discoveredUrls.length });
       
       // Try to fetch the most promising documents (limit to avoid overload)
       const maxDocsToFetch = 3;
       const successfullyFetched = [];
+      if (eventTracker) eventTracker.addEvent('document_fetch_start', `Attempting to fetch up to ${maxDocsToFetch} documents`, { maxDocsToFetch });
       
       for (let i = 0; i < Math.min(discoveredUrls.length, maxDocsToFetch); i++) {
         const url = discoveredUrls[i];
         try {
-          console.log(`📄 Attempting to fetch: ${url}`);
+          log(`📄 Attempting to fetch: ${url}`);
+          if (eventTracker) eventTracker.addEvent('document_fetch_attempt', `Fetching document from ${url}`, { url, documentNumber: i + 1 });
+          
           const doc = await this.fetchDocument(url);
           
           // Check if the fetched document is actually relevant
@@ -354,30 +370,40 @@ class StandaloneDocumentFetcher {
               tags: doc.tags.join(','),
               created_at: new Date()
             });
-            console.log(`✅ Successfully fetched and validated: ${url}`);
+            log(`✅ Successfully fetched and validated: ${url}`);
+            if (eventTracker) eventTracker.addEvent('document_fetch_success', `Successfully fetched and validated document`, { url });
           } else {
-            console.log(`⚠️ Document not relevant for question: ${url}`);
+            log(`⚠️ Document not relevant for question: ${url}`);
+            if (eventTracker) eventTracker.addEvent('document_rejected', `Document not relevant to question`, { url });
           }
         } catch (error) {
-          console.log(`❌ Failed to fetch ${url}: ${error.message}`);
+          log(`❌ Failed to fetch ${url}: ${error.message}`);
+          if (eventTracker) eventTracker.addEvent('document_fetch_error', `Failed to fetch document: ${error.message}`, { url, error: error.message });
           continue; // Try next URL
         }
       }
       
       // If we found documents, return them immediately
       if (successfullyFetched.length > 0) {
-        console.log(`🎉 Successfully discovered and ingested ${successfullyFetched.length} new documents on attempt ${attempt}!`);
+        log(`🎉 Successfully discovered and ingested ${successfullyFetched.length} new documents on attempt ${attempt}!`);
+        if (eventTracker) eventTracker.addEvent('discovery_success', `Successfully ingested ${successfullyFetched.length} documents on attempt ${attempt}`, { 
+          documentsIngested: successfullyFetched.length, 
+          attempt,
+          documents: successfullyFetched.map(d => ({ url: d.url, id: d.id }))
+        });
         return successfullyFetched;
       }
       
       // If this isn't the last attempt, continue with refined keywords
       if (attempt < maxAttempts) {
-        console.log(`⚡ Attempt ${attempt} found no documents. Refining search terms for attempt ${attempt + 1}...`);
+        log(`⚡ Attempt ${attempt} found no documents. Refining search terms for attempt ${attempt + 1}...`);
+        if (eventTracker) eventTracker.addEvent('refinement_needed', `No documents found, refining keywords for attempt ${attempt + 1}`, { attempt, nextAttempt: attempt + 1 });
         continue;
       }
     }
     
-    console.log(`😞 No relevant documents could be discovered after ${maxAttempts} attempts with refined keywords`);
+    log(`😞 No relevant documents could be discovered after ${maxAttempts} attempts with refined keywords`);
+    if (eventTracker) eventTracker.addEvent('discovery_failed', `No relevant documents found after ${maxAttempts} attempts`, { maxAttempts });
     return [];
   }
 
@@ -515,7 +541,7 @@ class StandaloneOpenAIClient {
   async generateAnswer(question, context, userLocale = 'en-AU') {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return this.generateMockAnswer(question, context);
+      throw new Error('OPENAI_API_KEY environment variable is required');
     }
 
     const prompt = `Based on the following Australian legal documents, please answer this question:
@@ -563,8 +589,7 @@ Please provide a clear, practical answer that helps the user understand their ob
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.log('OpenAI API failed, falling back to mock response');
-        return this.generateMockAnswer(question, context);
+        throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
       }
 
       const data = await response.json();
@@ -579,28 +604,77 @@ Please provide a clear, practical answer that helps the user understand their ob
       };
     } catch (error) {
       console.error('OpenAI API error:', error);
-      return this.generateMockAnswer(question, context);
+      throw error;
+    }
+  }
+}
+
+// Event tracking system for real-time query processing feedback
+class QueryEventTracker {
+  constructor(queryId) {
+    this.queryId = queryId;
+    this.events = [];
+    this.startTime = Date.now();
+    this.clients = new Set(); // WebSocket clients subscribed to this query
+  }
+
+  addEvent(type, message, data = {}) {
+    const event = {
+      queryId: this.queryId,
+      type,
+      message,
+      timestamp: Date.now(),
+      elapsedTime: Date.now() - this.startTime,
+      data
+    };
+    
+    this.events.push(event);
+    console.log(`📡 [${this.queryId}] ${type}: ${message}`);
+    
+    // Broadcast to subscribed clients
+    this.broadcast(event);
+    
+    return event;
+  }
+
+  broadcast(event) {
+    // Broadcast event to all subscribed WebSocket clients
+    for (const client of this.clients) {
+      if (client.readyState === 1) { // WebSocket.OPEN
+        client.send(JSON.stringify(event));
+      }
     }
   }
 
-  generateMockAnswer(question, context) {
-    return {
-      answer: `Based on the available legal documents, here's what I found regarding your question: "${question}"
+  subscribe(client) {
+    this.clients.add(client);
+    // Send existing events to new subscriber
+    for (const event of this.events) {
+      if (client.readyState === 1) {
+        client.send(JSON.stringify(event));
+      }
+    }
+  }
 
-The documents indicate relevant Australian legal provisions that may apply to your situation. However, this is a demonstration response as the system is operating in fallback mode.
+  unsubscribe(client) {
+    this.clients.delete(client);
+  }
 
-Key points from the legal documents:
-• Australian law provides various protections and procedures
-• Specific requirements may vary by state and territory
-• Professional legal advice is recommended for your specific circumstances
+  getEvents() {
+    return this.events;
+  }
 
-⚠️ IMPORTANT: This information is general in nature and should not be considered legal advice. Australian laws can be complex and may vary by jurisdiction. For specific legal matters, please consult with a qualified legal professional or contact the relevant government department.`,
-      sources: context ? ['Australian Legal Documents (AustLII)'] : [],
-      queryId: 'mock_' + Date.now(),
-      cached: false
-    };
+  complete(success, result) {
+    this.addEvent(
+      success ? 'query_completed' : 'query_failed',
+      success ? 'Query processing completed successfully' : 'Query processing failed',
+      { success, result, totalTime: Date.now() - this.startTime }
+    );
   }
 }
+
+// Global registry for active query trackers
+const activeQueries = new Map();
 
 // Initialize services
 const documentFetcher = new StandaloneDocumentFetcher();
@@ -663,46 +737,61 @@ app.post('/api/cache-documents', async (req, res) => {
   }
 });
 
-// Ask question endpoint
+// Ask question endpoint with real-time event tracking
 app.post('/api/legal/ask', async (req, res) => {
   const startTime = Date.now();
   const queryId = `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
+  // Create event tracker for this query
+  const eventTracker = new QueryEventTracker(queryId);
+  activeQueries.set(queryId, eventTracker);
+
   try {
     const { question, sessionId, userLocale, context } = req.body;
     
+    eventTracker.addEvent('query_received', 'Query received and processing started', { question, sessionId, userLocale, context });
+    
     if (!question) {
+      eventTracker.complete(false, 'Question is required');
       return res.status(400).json({
         success: false,
         error: 'Question is required',
         queryId,
+        events: eventTracker.getEvents(),
         executionTime: Date.now() - startTime
       });
     }
 
     // Find relevant documents OR discover them on-the-fly
     const location = context?.location;
-    const relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location);
+    eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { location });
+    const relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
     
     if (relevantDocs.length === 0) {
+      eventTracker.complete(false, 'No relevant documents could be found');
       return res.json({
         success: false,
         error: 'No relevant legal documents could be found or discovered. The system attempted to discover documents from AustLII but none were available or relevant to your question.',
         queryId,
+        events: eventTracker.getEvents(),
         executionTime: Date.now() - startTime
       });
     }
 
     // Prepare context
+    eventTracker.addEvent('context_preparation', `Preparing context from ${relevantDocs.length} documents`, { documentCount: relevantDocs.length });
     const docContext = relevantDocs
       .slice(0, 3)
       .map(doc => `DOCUMENT: ${doc.url}\nCONTENT: ${doc.content.substring(0, 2000)}...\n`)
       .join('\n\n');
 
     // Generate AI response
+    eventTracker.addEvent('ai_generation_start', 'Starting AI response generation', { documentCount: relevantDocs.length });
     const aiResponse = await openaiClient.generateAnswer(question, docContext, userLocale);
+    eventTracker.addEvent('ai_generation_complete', 'AI response generated successfully');
 
     // Prepare sources
+    eventTracker.addEvent('response_preparation', 'Preparing final response with sources', { sourceCount: relevantDocs.slice(0, 3).length });
     const sources = relevantDocs.slice(0, 3).map(doc => ({
       title: doc.url.split('/').pop() || 'Legal Document',
       url: doc.url,
@@ -720,22 +809,62 @@ app.post('/api/legal/ask', async (req, res) => {
       created_at: new Date()
     });
 
-    res.json({
+    // Complete tracking
+    const finalResult = {
       success: true,
       answer: aiResponse.answer,
       sources,
       confidence: 0.9,
       queryId,
-      executionTime: Date.now() - startTime
-    });
+      executionTime: Date.now() - startTime,
+      tokensUsed: aiResponse.tokensUsed || null,
+      events: eventTracker.getEvents()
+    };
+    
+    eventTracker.complete(true, finalResult);
+
+    res.json(finalResult);
 
   } catch (error) {
     console.error('Error in askQuestion:', error);
+    eventTracker.complete(false, error.message);
     res.status(500).json({
       success: false,
       error: error.message,
       queryId,
+      events: eventTracker.getEvents(),
       executionTime: Date.now() - startTime
+    });
+  }
+
+  // Clean up old query trackers after response
+  setTimeout(() => {
+    activeQueries.delete(queryId);
+  }, 300000); // Keep for 5 minutes for WebSocket clients
+});
+
+// Get query events endpoint
+app.get('/api/legal/query/:queryId/events', (req, res) => {
+  try {
+    const { queryId } = req.params;
+    const tracker = activeQueries.get(queryId);
+    
+    if (!tracker) {
+      return res.status(404).json({
+        success: false,
+        error: `Query ${queryId} not found or has expired`
+      });
+    }
+    
+    res.json({
+      success: true,
+      queryId,
+      events: tracker.getEvents()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -767,13 +896,64 @@ app.get('/api/legal/history', (req, res) => {
   }
 });
 
-// Start server
+// Start server with WebSocket support
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+const server = createServer(app);
+const wss = new WebSocketServer({ server });
+
+// WebSocket connection handling for real-time query events
+wss.on('connection', (ws, req) => {
+  console.log('📡 New WebSocket connection established');
+  
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      
+      if (data.type === 'subscribe' && data.queryId) {
+        // Subscribe to query events
+        const tracker = activeQueries.get(data.queryId);
+        if (tracker) {
+          tracker.subscribe(ws);
+          ws.send(JSON.stringify({
+            type: 'subscribed',
+            queryId: data.queryId,
+            message: 'Successfully subscribed to query events'
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Query ${data.queryId} not found`
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('WebSocket message error:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Invalid message format'
+      }));
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('📡 WebSocket connection closed');
+    // Unsubscribe from all query trackers
+    for (const tracker of activeQueries.values()) {
+      tracker.unsubscribe(ws);
+    }
+  });
+  
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`🏛️  LegalEase Standalone Server running on http://localhost:${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/api/hello`);
   console.log(`📄 Cache documents: POST http://localhost:${PORT}/api/cache-documents`);
   console.log(`🤖 Ask questions: POST http://localhost:${PORT}/api/legal/ask`);
+  console.log(`📡 WebSocket events: ws://localhost:${PORT}/`);
   console.log('');
-  console.log('Ready to test the real data pipeline!');
+  console.log('Ready to test the real data pipeline with real-time events!');
 });

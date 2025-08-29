@@ -30,7 +30,8 @@
       "Bash(npm run dev:frontend:*)",
       "Bash(curl:*)",
       "Bash(curl:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

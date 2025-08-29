@@ -44,8 +44,8 @@ show_help() {
     echo "  • Display formatted response with sources"
 }
 
-# Check if Encore is running
-check_encore() {
+# Check if backend is running (Encore or standalone)
+check_backend() {
     if curl -s "$BASE_URL/api/hello" > /dev/null 2>&1; then
         return 0
     else
@@ -53,7 +53,37 @@ check_encore() {
     fi
 }
 
-# Start Encore in background
+# Check if standalone server is running
+check_standalone() {
+    if pgrep -f "standalone-server.js" > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Start standalone server with lazy ingestion
+start_standalone() {
+    echo -e "${YELLOW}🚀 Starting standalone server with lazy ingestion...${NC}"
+    node standalone-server.js > server.log 2>&1 &
+    SERVER_PID=$!
+    
+    # Wait for server to start
+    echo -e "${BLUE}⏳ Waiting for backend to start...${NC}"
+    for i in {1..30}; do
+        if check_backend; then
+            echo -e "${GREEN}✅ Standalone server started with lazy ingestion!${NC}"
+            return 0
+        fi
+        sleep 1
+        echo -n "."
+    done
+    
+    echo -e "\n${RED}❌ Failed to start standalone server. Check server.log for details.${NC}"
+    exit 1
+}
+
+# Start Encore in background (fallback)
 start_encore() {
     echo -e "${YELLOW}🚀 Starting Encore backend...${NC}"
     encore run > encore.log 2>&1 &
@@ -62,7 +92,7 @@ start_encore() {
     # Wait for server to start
     echo -e "${BLUE}⏳ Waiting for backend to start...${NC}"
     for i in {1..30}; do
-        if check_encore; then
+        if check_backend; then
             echo -e "${GREEN}✅ Backend started successfully!${NC}"
             return 0
         fi
@@ -203,11 +233,21 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Start Encore if not running
-if ! check_encore; then
-    start_encore
+# Start backend (prefer standalone with lazy ingestion)
+if ! check_backend; then
+    if command -v node &> /dev/null && [ -f "standalone-server.js" ]; then
+        echo -e "${BLUE}🎯 Using standalone server with lazy ingestion${NC}"
+        start_standalone
+    else
+        echo -e "${BLUE}🎯 Falling back to Encore backend${NC}"
+        start_encore
+    fi
 else
-    echo -e "${GREEN}✅ Backend is already running${NC}"
+    if check_standalone; then
+        echo -e "${GREEN}✅ Standalone server with lazy ingestion is running${NC}"
+    else
+        echo -e "${GREEN}✅ Backend is already running${NC}"
+    fi
 fi
 
 # Cache documents if requested

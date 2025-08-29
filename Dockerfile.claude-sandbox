@@ -1,0 +1,43 @@
+FROM ubuntu:22.04
+
+# Install essential tools and dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    nodejs \
+    npm \
+    python3 \
+    python3-pip \
+    vim \
+    nano \
+    bash \
+    build-essential \
+    ca-certificates \
+    gpg \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude CLI
+RUN curl -fsSL https://claude.ai/cli/install.sh | bash
+
+# Install Claude Desktop (AppImage)
+RUN wget -O /usr/local/bin/claude-desktop https://github.com/anthropics/claude-desktop/releases/latest/download/Claude-linux-x86_64.AppImage && \
+    chmod +x /usr/local/bin/claude-desktop
+
+# Create a non-root user
+RUN useradd -m -s /bin/bash claude && \
+    echo "claude ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set working directory
+WORKDIR /workspace
+
+# Switch to non-root user
+USER claude
+
+# Set up a safe shell environment
+ENV HOME=/home/claude
+ENV SHELL=/bin/bash
+
+# Default command
+CMD ["/bin/bash"]
