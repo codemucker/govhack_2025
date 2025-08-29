@@ -1,3 +1,6 @@
+/* Import print styles */
+@import './styles/print.css';
+
 /* CSS Custom Properties for Theming */
 :root {
   /* Light theme colors */

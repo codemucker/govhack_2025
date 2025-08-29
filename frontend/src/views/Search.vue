@@ -5,28 +5,87 @@
       <p class="search-subtitle">
         Discover the permits, licences, and regulations that apply to your situation across all levels of Australian government
       </p>
-    </div>
-    
-    <SearchForm 
-      v-model="formData" 
-      :is-loading="loading"
-      @submit="performSearch" 
-    />
-
-    <SearchResults 
-      v-if="result" 
-      :result="result" 
-    />
-
-    <div v-if="error" class="error">
-      <div class="error-icon">❌</div>
-      <div class="error-content">
-        <h3>Search Error</h3>
-        <p>{{ error }}</p>
-        <button @click="clearError" class="btn btn-secondary">
-          Try Again
-        </button>
+      
+      <!-- Search Mode Toggle -->
+      <div class="search-mode-toggle">
+        <label class="mode-option" :class="{ active: !wizardMode }">
+          <input
+            type="radio"
+            :value="false"
+            v-model="wizardMode"
+            name="search-mode"
+            class="mode-radio"
+          />
+          <span class="mode-icon">🔍</span>
+          <span class="mode-text">Quick Search</span>
+        </label>
+        
+        <label class="mode-option" :class="{ active: wizardMode }">
+          <input
+            type="radio"
+            :value="true"
+            v-model="wizardMode"
+            name="search-mode"
+            class="mode-radio"
+          />
+          <span class="mode-icon">🧭</span>
+          <span class="mode-text">Guided Wizard</span>
+        </label>
       </div>
+    </div>
+
+    <!-- Quick Search Mode -->
+    <div v-if="!wizardMode" class="quick-search-mode">
+      <SearchForm 
+        v-model="formData" 
+        :is-loading="loading"
+        @submit="performSearch" 
+      />
+
+      <SearchResults 
+        v-if="result" 
+        :result="result"
+        @export-results="handleExportResults"
+      />
+
+      <div v-if="error" class="error">
+        <div class="error-icon">❌</div>
+        <div class="error-content">
+          <h3>Search Error</h3>
+          <p>{{ error }}</p>
+          <button @click="clearError" class="btn btn-secondary">
+            Try Again
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wizard Mode -->
+    <div v-else class="wizard-mode">
+      <SearchWizard
+        @wizard-complete="handleWizardComplete"
+        @wizard-cancelled="handleWizardCancelled"
+      />
+    </div>
+
+    <!-- Export Dialog -->
+    <ExportDialog
+      :is-open="exportDialogOpen"
+      :search-data="exportData.searchQuery"
+      :results="exportData.results"
+      @close="closeExportDialog"
+      @export-complete="handleExportComplete"
+      @export-error="handleExportError"
+    />
+
+    <!-- Print View (hidden, used for printing) -->
+    <div class="print-view-container" style="display: none;">
+      <PrintView
+        v-if="printData"
+        :search-data="printData.searchQuery"
+        :results="printData.results"
+        ref="printViewRef"
+      />
     </div>
   </div>
 </template>
@@ -35,7 +94,14 @@
 import { ref } from 'vue'
 import SearchForm from '../components/SearchForm.vue'
 import SearchResults from '../components/SearchResults.vue'
+import SearchWizard from '../components/SearchWizard.vue'
+import ExportDialog from '../components/ExportDialog.vue'
+import PrintView from '../components/PrintView.vue'
 import { useTriageSearch, type TriageResponse } from '../composables/useApi'
+import type { ExportData } from '../composables/useExport'
+
+// Search mode
+const wizardMode = ref(false)
 
 // Search state
 const formData = ref({
@@ -46,6 +112,31 @@ const formData = ref({
 const loading = ref(false)
 const result = ref<TriageResponse | null>(null)
 const error = ref('')
+
+// Export state
+const exportDialogOpen = ref(false)
+const exportData = ref<ExportData>({
+  searchQuery: {
+    query: '',
+    address: '',
+    businessType: '',
+    timestamp: Date.now()
+  },
+  results: {
+    requirements: [],
+    conflicts: [],
+    recommendations: []
+  },
+  metadata: {
+    exportedAt: Date.now(),
+    exportedBy: 'LegalEase User',
+    version: '1.0'
+  }
+})
+
+// Print state
+const printData = ref<ExportData | null>(null)
+const printViewRef = ref()
 
 // Use the triage search composable
 const { performTriage } = useTriageSearch()
@@ -71,6 +162,97 @@ const performSearch = async (data: { query: string; address: string }) => {
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * Handle wizard completion
+ */
+const handleWizardComplete = async (wizardData: any) => {
+  // Convert wizard data to search query and perform search
+  const searchQuery = {
+    query: wizardData.searchData.query || `${wizardData.searchData.businessType} business at ${wizardData.searchData.address}`,
+    address: wizardData.searchData.address || ''
+  }
+  
+  await performSearch(searchQuery)
+  
+  // Switch back to quick search mode to show results
+  wizardMode.value = false
+}
+
+/**
+ * Handle wizard cancellation
+ */
+const handleWizardCancelled = () => {
+  wizardMode.value = false
+}
+
+/**
+ * Handle export results request
+ */
+const handleExportResults = () => {
+  if (!result.value) return
+  
+  // Convert search result to export data format
+  exportData.value = {
+    searchQuery: {
+      query: formData.value.query,
+      address: formData.value.address,
+      businessType: result.value.businessContext?.type || '',
+      timestamp: Date.now()
+    },
+    results: {
+      requirements: result.value.requirements.map(req => ({
+        title: req.title,
+        authority: req.authority,
+        jurisdiction: req.jurisdiction,
+        status: req.status || 'Required',
+        description: req.description,
+        estimatedTime: req.estimatedTime || 'Contact authority',
+        estimatedCost: req.estimatedCost || 'Contact authority'
+      })),
+      conflicts: result.value.conflicts?.map(conflict => ({
+        title: conflict.title,
+        description: conflict.description,
+        severity: conflict.severity as 'low' | 'medium' | 'high'
+      })) || [],
+      recommendations: result.value.recommendations?.map((rec, index) => ({
+        title: rec.title || `Recommendation ${index + 1}`,
+        description: rec.description,
+        priority: rec.priority || index + 1
+      })) || []
+    },
+    metadata: {
+      exportedAt: Date.now(),
+      exportedBy: 'LegalEase User',
+      version: '1.0'
+    }
+  }
+  
+  exportDialogOpen.value = true
+}
+
+/**
+ * Close export dialog
+ */
+const closeExportDialog = () => {
+  exportDialogOpen.value = false
+}
+
+/**
+ * Handle export completion
+ */
+const handleExportComplete = (filename: string, format: string) => {
+  console.log(`Export completed: ${filename} (${format})`)
+  // Could show a success toast here
+}
+
+/**
+ * Handle export error
+ */
+const handleExportError = (error: string) => {
+  console.error('Export error:', error)
+  // Could show an error toast here
 }
 
 /**
@@ -107,7 +289,62 @@ const clearError = () => {
   font-size: 1.125rem;
   line-height: 1.6;
   max-width: 600px;
-  margin: 0 auto;
+  margin: 0 auto 2rem auto;
+}
+
+/* Search Mode Toggle */
+.search-mode-toggle {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border: 2px solid var(--border-color, #e5e7eb);
+  border-radius: 0.75rem;
+  background: var(--bg-secondary, #f9fafb);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary, #6b7280);
+}
+
+.mode-option:hover {
+  border-color: var(--primary-color, #059669);
+  background: var(--hover-bg, #f3f4f6);
+  color: var(--text-primary, #1f2937);
+}
+
+.mode-option.active {
+  border-color: var(--primary-color, #059669);
+  background: var(--active-bg, #f0fdf4);
+  color: var(--primary-color, #059669);
+}
+
+.mode-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.mode-text {
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+/* Mode Content */
+.quick-search-mode,
+.wizard-mode {
+  margin-top: 2rem;
 }
 
 .error {
