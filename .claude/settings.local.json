@@ -28,10 +28,12 @@
       "Bash(git branch:*)",
       "Bash(git commit:*)",
       "Bash(npm run dev:frontend:*)",
-      "Bash(curl:*)",
+      "Bash(npm run:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git pull:*)",
+      "Bash(git rebase:*)"
     ],
     "deny": [],
     "ask": []
