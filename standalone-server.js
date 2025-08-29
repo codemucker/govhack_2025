@@ -511,7 +511,9 @@ Respond in JSON format:
       const content = data.choices[0].message.content;
       
       try {
-        const analysis = JSON.parse(content);
+        // Clean the response - remove markdown code blocks if present
+        const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const analysis = JSON.parse(cleanContent);
         console.log(`🧠 LLM Analysis (attempt ${attempt}):`, analysis);
         return analysis;
       } catch (parseError) {
