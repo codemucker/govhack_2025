@@ -40,6 +40,12 @@
       </div>
     </div>
 
+    <!-- Live Legal Question Demo -->
+    <div class="demo-section">
+      <h2>🚀 Try It Now - Ask a Legal Question</h2>
+      <LegalQuestionForm />
+    </div>
+
     <div class="api-status">
       <h3>API Status</h3>
       <div v-if="loading" class="status-loading">Checking API...</div>
@@ -57,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import LegalQuestionForm from '../components/LegalQuestionForm.vue'
 
 const loading = ref(true)
 const apiStatus = ref<{ message: string; timestamp: string } | null>(null)
@@ -180,6 +187,21 @@ onMounted(() => {
 
 .feature-card p {
   color: #6b7280;
+}
+
+.demo-section {
+  background: #f0f9ff;
+  border-radius: 1rem;
+  padding: 2rem;
+  margin: 3rem 0;
+  text-align: left;
+}
+
+.demo-section h2 {
+  text-align: center;
+  color: #1e40af;
+  margin-bottom: 2rem;
+  font-size: 1.75rem;
 }
 
 .api-status {

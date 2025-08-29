@@ -27,6 +27,23 @@ npm run dev:backend    # Encore.dev API server (http://127.0.0.1:4000)
 npm run dev:frontend   # Vue.js dev server (http://localhost:3000)
 ```
 
+### CLI Testing Tool
+Test the backend AI pipeline directly from the command line:
+```bash
+# Test business questions
+./ask.sh "How do I register a business in Australia?"
+
+# Test planning questions  
+./ask.sh "Do I need planning permission for a house extension?"
+
+# Test food safety questions
+./ask.sh "What food safety licenses do I need for a restaurant?"
+
+# Test consumer rights
+./ask.sh "What are my rights when buying faulty products?"
+```
+See [CLI_USAGE.md](./CLI_USAGE.md) for detailed documentation.
+
 ### Build & Deploy
 ```bash
 npm run build    # Build both frontend and backend
