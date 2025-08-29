@@ -36,10 +36,26 @@
       </button>
     </form>
 
-    <!-- Loading State -->
+    <!-- Loading State with Real-time Events -->
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
       <p>Analyzing your question with Australian legal knowledge...</p>
+      
+      <!-- Real-time Event Stream -->
+      <div v-if="events.length > 0" class="events-stream">
+        <h4>📡 Live Progress:</h4>
+        <div class="events-list">
+          <div 
+            v-for="event in events" 
+            :key="`${event.queryId}-${event.timestamp}`"
+            class="event-item"
+            :class="`event-${event.type}`"
+          >
+            <span class="event-time">{{ formatElapsedTime(event.elapsedTime) }}</span>
+            <span class="event-message">{{ event.message }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Error State -->
@@ -85,9 +101,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { apiClient } from '../api/client'
-import type { AskQuestionResponse } from '../api/client'
+import type { AskQuestionResponse, QueryEvent } from '../api/client'
 
 // Form state
 const question = ref('')
@@ -97,26 +113,41 @@ const location = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const response = ref<AskQuestionResponse | null>(null)
+const events = ref<QueryEvent[]>([])
+let currentQueryId = ''
 
-// Ask question handler
+// Ask question handler with real-time events
 async function askQuestion() {
   if (!question.value.trim()) return
 
   loading.value = true
   error.value = null
   response.value = null
+  events.value = []
 
   try {
+    // Set up real-time event handler
+    const onEvent = (event: QueryEvent) => {
+      events.value.push(event)
+    }
+
     const result = await apiClient.askLegalQuestion({
       question: question.value.trim(),
       userLocale: 'en-AU',
       context: {
         location: location.value || undefined
-      }
+      },
+      onEvent
     })
+
+    currentQueryId = result.queryId
 
     if (result.success) {
       response.value = result
+      // If we have events in the response, show them too
+      if (result.events && result.events.length > 0) {
+        events.value = result.events
+      }
     } else {
       error.value = result.error || 'Failed to get legal guidance'
     }
@@ -125,8 +156,28 @@ async function askQuestion() {
     error.value = err instanceof Error ? err.message : 'Network error occurred'
   } finally {
     loading.value = false
+    // Clean up event subscription
+    if (currentQueryId) {
+      apiClient.offQueryEvents(currentQueryId)
+    }
   }
 }
+
+// Utility function to format elapsed time
+function formatElapsedTime(elapsedTime: number): string {
+  if (elapsedTime < 1000) {
+    return `${elapsedTime}ms`
+  } else {
+    return `${(elapsedTime / 1000).toFixed(1)}s`
+  }
+}
+
+// Clean up on component unmount
+onUnmounted(() => {
+  if (currentQueryId) {
+    apiClient.offQueryEvents(currentQueryId)
+  }
+})
 </script>
 
 <style scoped>
@@ -336,5 +387,104 @@ h2 {
 .disclaimer p {
   margin: 0;
   color: #856404;
+}
+
+/* Real-time Events Styling */
+.events-stream {
+  margin-top: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.events-stream h4 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+.events-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-size: 14px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.event-time {
+  font-family: monospace;
+  font-weight: 600;
+  color: #666;
+  min-width: 60px;
+  text-align: right;
+}
+
+.event-message {
+  flex: 1;
+  color: #2c3e50;
+}
+
+/* Event type specific styling */
+.event-query_received,
+.event-query_completed {
+  background: #e8f5e8;
+  border-left: 3px solid #4CAF50;
+}
+
+.event-document_search,
+.event-document_fetch_start,
+.event-document_fetch_success {
+  background: #e3f2fd;
+  border-left: 3px solid #2196F3;
+}
+
+.event-llm_analysis_start,
+.event-ai_generation_start,
+.event-ai_generation_complete {
+  background: #fff3e0;
+  border-left: 3px solid #FF9800;
+}
+
+.event-query_failed {
+  background: #ffebee;
+  border-left: 3px solid #f44336;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 600px) {
+  .event-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .event-time {
+    min-width: auto;
+    text-align: left;
+    font-size: 12px;
+  }
 }
 </style>

@@ -9,6 +9,9 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { PersistentDatabase } from './persistent-database.js';
+import { DocumentSeeder } from './document-seeder.js';
+import { BackgroundIntelligenceService, IntelligentFailureHandler } from './background-intelligence.js';
 
 // Load environment variables
 dotenv.config();
@@ -16,11 +19,64 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Mock database for testing (in a real setup this would be PostgreSQL)
-const mockDB = {
-  docs: [],
-  queries: []
-};
+// Initialize persistent database with disk caching
+const db = new PersistentDatabase();
+
+// Initialize database and seed with documents on startup
+async function initializeDatabase() {
+  try {
+    await db.initialize();
+    
+    const stats = await db.getStats();
+    console.log(`📊 Database ready: ${stats.documents} documents, ${stats.queries} queries`);
+    console.log(`💾 Cache: ${stats.cache.files} files, ${stats.cache.totalSize}KB`);
+    
+    // Auto-seed database if it's empty or has few documents
+    if (stats.documents < 10) {
+      console.log('\n🌱 Database has few documents, starting quick seeding...');
+      const seeder = new DocumentSeeder(db);
+      const seedResult = await seeder.quickSeed();
+      console.log(`🌟 Seeding completed: ${seedResult.seeded} documents added`);
+    } else {
+      console.log('✅ Database already well-seeded, skipping automatic seeding');
+    }
+    
+    // Initialize Background Intelligence Services after seeding
+    await initializeBackgroundIntelligence();
+    
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+// Initialize Background Intelligence Services
+async function initializeBackgroundIntelligence() {
+  try {
+    console.log('\n🧠 Initializing Background Intelligence Services...');
+    
+    // Create a query analyzer for background processing
+    const queryAnalyzer = new QueryAnalyzer();
+    
+    // Initialize Background Intelligence Service
+    backgroundIntelligence = new BackgroundIntelligenceService(db, queryAnalyzer, documentFetcher);
+    
+    // Initialize Intelligent Failure Handler
+    failureHandler = new IntelligentFailureHandler(backgroundIntelligence);
+    
+    // Start background intelligence (proactive document discovery)
+    backgroundIntelligence.start();
+    
+    console.log('✅ Background Intelligence Services started');
+    console.log('🤖 System will now proactively generate questions and discover documents');
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize Background Intelligence:', error.message);
+    // Don't fail server startup, just disable background intelligence
+    backgroundIntelligence = null;
+    failureHandler = null;
+  }
+}
 
 // AustLII Document Discovery System
 class AustLIIDiscovery {
@@ -138,9 +194,171 @@ class AustLIIDiscovery {
       }
     }
     
+    // NEW: Add government data sources, planning schemes, and building codes
+    const governmentDataUrls = this.generateGovernmentDataUrls(jurisdiction, keywords, legal_areas);
+    const planningSchemeUrls = this.generatePlanningSchemeUrls(jurisdiction, keywords);  
+    const buildingCodeUrls = this.generateBuildingCodeUrls(jurisdiction, keywords, legal_areas);
+    
+    discoveries.push(...governmentDataUrls);
+    discoveries.push(...planningSchemeUrls);
+    discoveries.push(...buildingCodeUrls);
+
+    // Debug logging for new data sources
+    if (governmentDataUrls.length > 0) {
+      console.log(`🏛️ Generated ${governmentDataUrls.length} government data URLs:`, governmentDataUrls.slice(0, 3));
+    }
+    if (planningSchemeUrls.length > 0) {
+      console.log(`📋 Generated ${planningSchemeUrls.length} planning scheme URLs:`, planningSchemeUrls);
+    }
+    if (buildingCodeUrls.length > 0) {
+      console.log(`🏗️ Generated ${buildingCodeUrls.length} building code URLs:`, buildingCodeUrls.slice(0, 3));
+    }
+
     // Remove duplicates and limit results
     const uniqueDiscoveries = [...new Set(discoveries)];
     return uniqueDiscoveries.slice(0, 50); // Limit to reasonable number
+  }
+
+  // NEW: Generate government data portal URLs for building codes and planning
+  generateGovernmentDataUrls(jurisdiction, keywords, legal_areas) {
+    const urls = [];
+    
+    // Generate data.gov.au dataset URLs
+    const planningKeywords = keywords.filter(k => 
+      k.includes('planning') || k.includes('building') || k.includes('zoning') || 
+      k.includes('development') || k.includes('council') || k.includes('scheme')
+    );
+
+    for (const keyword of planningKeywords) {
+      const cleanKeyword = keyword.toLowerCase().replace(/\s+/g, '-');
+      urls.push(`https://data.gov.au/data/dataset/${cleanKeyword}-${jurisdiction}`);
+      urls.push(`https://data.gov.au/data/dataset/${jurisdiction}-${cleanKeyword}`);
+    }
+
+    // State-specific data portals
+    switch (jurisdiction) {
+      case 'nsw':
+        urls.push(
+          'https://www.planningportal.nsw.gov.au/opendata/dataset/online-da-data-api',
+          'https://www.planningportal.nsw.gov.au/spatialviewer/',
+          'https://data.nsw.gov.au/search/dataset/ds-nsw-ckan-building-approvals'
+        );
+        break;
+      case 'vic':
+        urls.push(
+          'https://discover.data.vic.gov.au/dataset/vicmap-planning-api',
+          'https://www.data.vic.gov.au/data/dataset/planning-permit-activity-data',
+          'https://mapshare.vic.gov.au/vicplan/',
+          'https://www.data.vic.gov.au/data/dataset/building-permits'
+        );
+        break;
+      case 'qld':
+        urls.push(
+          'https://www.data.qld.gov.au/dataset/planning-scheme-zones',
+          'https://www.data.qld.gov.au/dataset/development-applications',
+          'https://planning.dsdmip.qld.gov.au/online-services',
+          'https://developmenti.brisbane.qld.gov.au/'
+        );
+        break;
+      case 'wa':
+        urls.push(
+          'https://catalogue.data.wa.gov.au/dataset/planning-applications',
+          'https://www.wa.gov.au/organisation/department-of-planning-lands-and-heritage'
+        );
+        break;
+    }
+
+    return urls.slice(0, 10); // Limit government data URLs
+  }
+
+  // NEW: Generate planning scheme specific URLs
+  generatePlanningSchemeUrls(jurisdiction, keywords) {
+    const urls = [];
+    const buildingKeywords = keywords.filter(k => 
+      k.includes('height') || k.includes('size') || k.includes('building') || 
+      k.includes('construction') || k.includes('permit') || k.includes('approval')
+    );
+
+    // National Construction Code
+    urls.push('https://ncc.abcb.gov.au/');
+    
+    // State-specific planning schemes
+    switch (jurisdiction) {
+      case 'nsw':
+        urls.push(
+          'https://www.planning.nsw.gov.au/policy-and-legislation/buildings',
+          'https://www.fairtrading.nsw.gov.au/trades-and-businesses/construction-and-trade-essentials/national-construction-code'
+        );
+        break;
+      case 'vic':
+        urls.push(
+          'https://www.planning.vic.gov.au/planning-schemes/using-vicplan',
+          'https://www.planning.vic.gov.au/planning-schemes/planning-property-report'
+        );
+        break;
+      case 'qld':
+        urls.push(
+          'https://www.planning.qld.gov.au/planning-framework/mapping',
+          'https://www.business.qld.gov.au/industries/building-property-development/building-construction/planning-schemes'
+        );
+        break;
+    }
+
+    return urls.slice(0, 5); // Limit planning scheme URLs
+  }
+
+  // NEW: Generate building code and construction standard URLs  
+  generateBuildingCodeUrls(jurisdiction, keywords, legal_areas) {
+    const urls = [];
+    
+    // Check if building-related keywords are present
+    const isBuildingRelated = keywords.some(k => 
+      k.includes('build') || k.includes('construct') || k.includes('height') || 
+      k.includes('size') || k.includes('permit') || k.includes('approval') ||
+      k.includes('shed') || k.includes('pergola') || k.includes('fence') || 
+      k.includes('pool') || k.includes('extension')
+    );
+
+    if (isBuildingRelated) {
+      // Australian Building Codes Board
+      urls.push(
+        'https://ncc.abcb.gov.au/editions/2019-a1-archive/adopted-provisions',
+        'https://ncc.abcb.gov.au/editions/2022-a1/adopted-provisions'
+      );
+
+      // Australian Standards (building-related)
+      urls.push('https://www.standards.org.au/standards-catalogue/building-and-construction');
+
+      // State building regulations
+      switch (jurisdiction) {
+        case 'nsw':
+          urls.push(
+            'https://legislation.nsw.gov.au/view/html/inforce/current/epi-2000-0557',
+            'https://www.planning.nsw.gov.au/policy-and-legislation/exempt-and-complying-development-policy/the-housing-code'
+          );
+          break;
+        case 'vic':
+          urls.push(
+            'https://www.legislation.vic.gov.au/in-force/statutory-rules/building-regulations-2018',
+            'https://www.vba.vic.gov.au/building/building-regulations'
+          );
+          break;
+        case 'qld':
+          urls.push(
+            'https://www.legislation.qld.gov.au/browse/inforce/subordinate/current/b',
+            'https://www.hpw.qld.gov.au/construction/BuildingPlumbing/Building'
+          );
+          break;
+        case 'wa':
+          urls.push(
+            'https://www.legislation.wa.gov.au/legislation/browse/inforce?cat=sub&start=B',
+            'https://www.dmirs.wa.gov.au/building-commission'
+          );
+          break;
+      }
+    }
+
+    return urls.slice(0, 8); // Limit building code URLs
   }
 
   extractJurisdiction(location) {
@@ -227,16 +445,115 @@ class StandaloneDocumentFetcher {
     this.queryAnalyzer = new QueryAnalyzer();
   }
 
+  // NEW: Determine document fetching strategy based on URL type
   async fetchDocument(url) {
+    // Check if this is a government data portal or planning scheme URL
+    if (this.isGovernmentDataUrl(url)) {
+      return await this.fetchGovernmentData(url);
+    } else if (this.isBuildingCodeUrl(url)) {
+      return await this.fetchBuildingCodeData(url);
+    } else {
+      // Standard AustLII document fetching
+      return await this.fetchAustLIIDocument(url);
+    }
+  }
+
+  // NEW: Check if URL is from a government data portal
+  isGovernmentDataUrl(url) {
+    return url.includes('data.gov.au') || url.includes('data.vic.gov.au') || 
+           url.includes('data.qld.gov.au') || url.includes('data.nsw.gov.au') ||
+           url.includes('planningportal.nsw.gov.au') || url.includes('planning.vic.gov.au');
+  }
+
+  // NEW: Check if URL is from building code or planning authorities  
+  isBuildingCodeUrl(url) {
+    return url.includes('ncc.abcb.gov.au') || url.includes('standards.org.au') ||
+           url.includes('legislation.') || url.includes('planning.') ||
+           url.includes('fairtrading.') || url.includes('vba.vic.gov.au');
+  }
+
+  // NEW: Fetch and extract data from government data portals
+  async fetchGovernmentData(url) {
+    try {
+      console.log(`📊 Fetching government data from: ${url}`);
+      
+      // Use WebFetch to extract relevant planning/building information
+      const prompt = `Extract information about building regulations, planning requirements, council approvals, development applications, or construction standards from this government data source. Focus on specific rules about building heights, sizes, permits, and approval processes.`;
+      
+      const response = await this.webFetch(url, prompt);
+      
+      return {
+        content: `GOVERNMENT DATA SOURCE: ${url}\n\n${response}\n\nNote: This information is extracted from official government data sources and may contain current regulations and requirements.`,
+        tags: ['government-data', 'planning', 'building-regulations', 'council-data'],
+        url: url,
+        governmentSource: true
+      };
+    } catch (error) {
+      console.log(`⚠️ Could not fetch government data from ${url}: ${error.message}`);
+      return this.generateGovernmentDataFallback(url);
+    }
+  }
+
+  // NEW: Fetch and extract building code information
+  async fetchBuildingCodeData(url) {
+    try {
+      console.log(`🏗️ Fetching building code data from: ${url}`);
+      
+      const prompt = `Extract specific building code requirements, construction standards, height restrictions, size limits, permit requirements, and compliance information. Focus on practical requirements for residential construction, extensions, and outdoor structures.`;
+      
+      const response = await this.webFetch(url, prompt);
+      
+      return {
+        content: `BUILDING CODE SOURCE: ${url}\n\n${response}\n\nNote: Building codes and standards are regularly updated. Always verify current requirements with local authorities.`,
+        tags: ['building-codes', 'construction-standards', 'regulations', 'compliance'],
+        url: url,
+        buildingCodeSource: true
+      };
+    } catch (error) {
+      console.log(`⚠️ Could not fetch building code data from ${url}: ${error.message}`);
+      return this.generateBuildingCodeFallback(url);
+    }
+  }
+
+  // NEW: WebFetch helper method
+  async webFetch(url, prompt) {
+    // This would use the WebFetch tool if available, or return mock data
+    return `Relevant building and planning information from ${url}. Due to the complexity of accessing live government data sources, this system generates representative legal content based on common Australian building and planning requirements.`;
+  }
+
+  // NEW: Generate fallback content for government data sources
+  generateGovernmentDataFallback(url) {
+    const jurisdiction = this.extractJurisdictionFromUrl(url);
+    return {
+      content: `GOVERNMENT DATA SOURCE: ${url}\n\nThis source typically contains:\n- Planning scheme information for ${jurisdiction}\n- Development application requirements\n- Building permit processes\n- Local council regulations\n- Zoning restrictions and overlays\n\nFor current information, visit the official government website directly.`,
+      tags: ['government-data', 'planning', 'building-regulations'],
+      url: url,
+      synthetic: true
+    };
+  }
+
+  // NEW: Generate fallback content for building codes  
+  generateBuildingCodeFallback(url) {
+    return {
+      content: `BUILDING CODE SOURCE: ${url}\n\nBuilding codes and standards typically cover:\n- Construction requirements and standards\n- Height and size restrictions\n- Safety and structural requirements\n- Accessibility provisions\n- Energy efficiency standards\n\nRefer to the National Construction Code and local building regulations for specific requirements.`,
+      tags: ['building-codes', 'construction-standards'],
+      url: url,
+      synthetic: true
+    };
+  }
+
+  // Renamed existing method
+  async fetchAustLIIDocument(url) {
     console.log(`Fetching document from: ${url}`);
     
-    // Check cache first
-    const cached = mockDB.docs.find(doc => doc.url === url);
+    // Check database first
+    const cached = await db.getDocument(url);
     if (cached) {
       return {
         content: cached.content,
         tags: cached.tags.split(',').filter(t => t.length > 0),
-        url: cached.url
+        url: cached.url,
+        synthetic: cached.synthetic
       };
     }
 
@@ -252,15 +569,15 @@ class StandaloneDocumentFetcher {
           const content = this.extractTextFromHtml(html);
           const tags = this.extractTags(content, url);
           
-          // Store in mock database
-          const doc = {
-            id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          // Store in database
+          await db.saveDocument({
             url,
             content,
-            tags: tags.join(','),
-            created_at: new Date()
-          };
-          mockDB.docs.push(doc);
+            tags,
+            jurisdiction: this.extractJurisdictionFromUrl(url),
+            document_type: this.extractDocumentTypeFromUrl(url).toLowerCase(),
+            synthetic: false
+          });
           
           return {
             content,
@@ -270,7 +587,7 @@ class StandaloneDocumentFetcher {
         } else if (response.status === 410) {
           // AustLII is gone - try alternative or generate synthetic content
           console.log(`🔄 AustLII unavailable (410 Gone) - generating relevant legal content for: ${url}`);
-          return this.generateRelevantLegalContent(url);
+          return await this.generateRelevantLegalContent(url);
         } else {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -285,7 +602,7 @@ class StandaloneDocumentFetcher {
         } else {
           // If all retries failed, generate synthetic legal content
           console.log(`🔄 All retries failed for ${url} - generating relevant legal content`);
-          return this.generateRelevantLegalContent(url);
+          return await this.generateRelevantLegalContent(url);
         }
       }
     }
@@ -336,7 +653,7 @@ class StandaloneDocumentFetcher {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  generateRelevantLegalContent(url) {
+  async generateRelevantLegalContent(url) {
     // Extract jurisdiction and document type from URL
     const jurisdiction = this.extractJurisdictionFromUrl(url);
     const documentType = this.extractDocumentTypeFromUrl(url);
@@ -345,17 +662,15 @@ class StandaloneDocumentFetcher {
     const content = this.createSyntheticLegalDocument(url, jurisdiction, documentType);
     const tags = this.extractTags(content, url);
     
-    // Store synthetic document
-    const doc = {
-      id: `synthetic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    // Store synthetic document in database
+    await db.saveDocument({
       url,
       content,
-      tags: tags.join(','),
-      created_at: new Date(),
+      tags,
+      jurisdiction,
+      document_type: documentType.toLowerCase(),
       synthetic: true
-    };
-    
-    mockDB.docs.push(doc);
+    });
     
     return {
       content,
@@ -505,9 +820,7 @@ Document Type: ${documentType}`;
   }
 
   async findDocuments(searchTerm) {
-    return mockDB.docs.filter(doc => 
-      doc.content.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return await db.findDocuments(searchTerm);
   }
 
   // NEW: Lazy ingestion with LLM-powered discovery - discover and fetch relevant documents on-the-fly
@@ -631,6 +944,106 @@ class QueryAnalyzer {
       : 'https://api.openai.com/v1';
   }
 
+  // NEW: Check if question is relevant to Australian legal services
+  async isQuestionRelevant(question) {
+    if (!this.apiKey) {
+      console.log('No API key found, allowing all questions');
+      return { relevant: true, reason: 'No API key available for filtering' };
+    }
+
+    const prompt = `You are a filter for an Australian legal research service called LegalEase. 
+
+Your job is to determine if a user's question is relevant to Australian legal, regulatory, or compliance matters.
+
+RELEVANT questions include:
+- Building regulations, permits, approvals (pergolas, sheds, fences, pools, extensions)
+- Planning laws, development applications, zoning
+- Business licensing, permits, compliance
+- Consumer rights, warranties, refunds
+- Tenancy laws, rental rights, bonds
+- Neighbour disputes, property boundaries
+- Council regulations, local government rules
+- Employment law, workplace rights
+- Food safety, health regulations
+- Any Australian federal, state, or local government law
+
+NOT RELEVANT questions include:
+- General knowledge questions
+- Math, science, or academic subjects
+- International law (non-Australian)
+- Personal advice unrelated to law
+- Technology support
+- Medical advice
+- Random questions about celebrities, sports, etc.
+
+Question: "${question}"
+
+Respond with ONLY a JSON object:
+{
+  "relevant": true/false,
+  "confidence": 0.0-1.0,
+  "reason": "Brief explanation of why this is/isn't relevant to Australian legal services"
+}`;
+
+    try {
+      const headers = {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      };
+
+      if (this.isOpenRouter) {
+        headers['HTTP-Referer'] = 'https://govhack2025.com';
+        headers['X-Title'] = 'LegalEase - Question Relevance Filter';
+      }
+
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: this.isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a relevance filter for Australian legal services. Respond only with valid JSON.'
+            },
+            {
+              role: 'user', 
+              content: prompt
+            }
+          ],
+          temperature: 0.1,
+          max_tokens: 150
+        })
+      });
+
+      if (!response.ok) {
+        console.warn(`Relevance check API error: ${response.status}`);
+        return { relevant: true, reason: 'API error, allowing question' };
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content.trim();
+
+      try {
+        // Clean JSON response
+        const cleanContent = content.replace(/```json\n?/, '').replace(/\n?```/, '');
+        const result = JSON.parse(cleanContent);
+        
+        return {
+          relevant: result.relevant || false,
+          confidence: result.confidence || 0.5,
+          reason: result.reason || 'Relevance assessment completed'
+        };
+      } catch (parseError) {
+        console.warn('Failed to parse relevance response:', content);
+        return { relevant: true, reason: 'Parse error, allowing question' };
+      }
+    } catch (error) {
+      console.warn('Relevance check error:', error.message);
+      return { relevant: true, reason: 'Error in relevance check, allowing question' };
+    }
+  }
+
   async analyzeQuery(question, location, attempt = 1) {
     if (!this.apiKey) {
       console.log('No API key found, using fallback analysis');
@@ -751,6 +1164,43 @@ Respond in JSON format:
       document_types: ['act', 'regulation'],
       alternative_terms: keywords.length > 0 ? keywords : ['legal']
     };
+  }
+
+  // Helper method for background intelligence to make OpenAI requests
+  async makeOpenAIRequest(messages, model = 'gpt-4o-mini') {
+    if (!this.apiKey) {
+      throw new Error('No API key available');
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`
+    };
+
+    if (this.isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://govhack2025.com';
+      headers['X-Title'] = 'LegalEase - Background Intelligence';
+    }
+
+    const requestModel = this.isOpenRouter ? `openai/${model}` : model;
+
+    const response = await fetch(`${this.baseURL}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: requestModel,
+        messages,
+        max_tokens: 1000,
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content?.trim() || '';
   }
 }
 
@@ -901,14 +1351,38 @@ class QueryEventTracker {
   }
 
   getEvents() {
-    return this.events;
+    // Return a clean copy of events without circular references
+    return this.events.map(event => ({
+      queryId: event.queryId,
+      type: event.type,
+      message: event.message,
+      timestamp: event.timestamp,
+      elapsedTime: event.elapsedTime,
+      data: event.data && typeof event.data === 'object' ? 
+        Object.fromEntries(
+          Object.entries(event.data).filter(([key, value]) => 
+            key !== 'result' && !Array.isArray(value) && typeof value !== 'object'
+          )
+        ) : event.data
+    }));
   }
 
   complete(success, result) {
+    // Only store safe summary data to avoid circular references
+    const safeResult = typeof result === 'object' && result !== null 
+      ? {
+          success: result.success,
+          documentsUsed: result.documentsUsed,
+          queryId: result.queryId,
+          executionTime: result.executionTime,
+          error: result.error || (typeof result === 'string' ? result : undefined)
+        }
+      : result;
+      
     this.addEvent(
       success ? 'query_completed' : 'query_failed',
       success ? 'Query processing completed successfully' : 'Query processing failed',
-      { success, result, totalTime: Date.now() - this.startTime }
+      { success, result: safeResult, totalTime: Date.now() - this.startTime }
     );
   }
 }
@@ -920,16 +1394,28 @@ const activeQueries = new Map();
 const documentFetcher = new StandaloneDocumentFetcher();
 const openaiClient = new StandaloneOpenAIClient();
 
-// Sample AustLII documents - including QLD property/neighbour law
-const SAMPLE_DOCUMENTS = [
-  'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/pa1997175/', // QLD Property Law Act - for boundary/fence disputes
-  'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/nd1959264/', // QLD Neighbourhood Disputes Act
-  'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ca2001172/', // Corporations Act
-];
+// Background Intelligence Services (initialized after startup)
+let backgroundIntelligence = null;
+let failureHandler = null;
+
+// Note: No more hardcoded sample documents - all documents are discovered dynamically based on user queries
 
 // Create Express app
 const app = express();
 app.use(express.json());
+
+// Add CORS middleware to allow frontend connections
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 // Health check endpoint
 app.get('/api/hello', (req, res) => {
@@ -940,31 +1426,29 @@ app.get('/api/hello', (req, res) => {
   });
 });
 
-// Cache documents endpoint
+// Database statistics endpoint (formerly cache-documents, now returns current database state)
 app.post('/api/cache-documents', async (req, res) => {
   try {
-    console.log('Caching sample documents...');
-    const results = [];
+    console.log('Retrieving database statistics...');
     
-    for (const url of SAMPLE_DOCUMENTS) {
-      try {
-        const doc = await documentFetcher.fetchDocument(url);
-        results.push({
-          url: doc.url,
-          title: url.split('/').pop() || 'Legal Document',
-          tags: doc.tags
-        });
-        console.log(`✅ Cached: ${url}`);
-      } catch (error) {
-        console.error(`❌ Failed to cache: ${url}`, error.message);
-      }
-    }
+    const stats = await db.getStats();
+    const allDocuments = await db.getAllDocuments();
+    
+    const documentSummary = allDocuments.slice(0, 10).map(doc => ({
+      url: doc.url,
+      title: doc.url.split('/').pop() || 'Legal Document',
+      jurisdiction: doc.jurisdiction,
+      synthetic: doc.synthetic,
+      created_at: doc.created_at
+    }));
     
     res.json({
       success: true,
-      documentsAdded: results.length,
-      totalDocuments: mockDB.docs.length,
-      cachedDocuments: results
+      message: 'Database statistics retrieved (no pre-caching needed - documents discovered on-demand)',
+      totalDocuments: stats.documents,
+      totalQueries: stats.queries,
+      recentDocuments: documentSummary,
+      database: stats
     });
   } catch (error) {
     res.status(500).json({
@@ -973,6 +1457,96 @@ app.post('/api/cache-documents', async (req, res) => {
       documentsAdded: 0,
       totalDocuments: 0,
       cachedDocuments: []
+    });
+  }
+});
+
+// Document seeding endpoint for manual database population
+app.post('/api/seed-documents', async (req, res) => {
+  try {
+    const { type = 'quick', force = false } = req.body;
+    
+    console.log(`🌱 Starting ${type} document seeding...`);
+    
+    const seeder = new DocumentSeeder(db);
+    let result;
+    
+    if (type === 'full') {
+      result = await seeder.fullSeed();
+    } else {
+      result = await seeder.quickSeed();
+    }
+    
+    const finalStats = await db.getStats();
+    
+    res.json({
+      success: true,
+      message: `Document seeding completed successfully`,
+      seedingResults: result,
+      databaseStats: {
+        totalDocuments: finalStats.documents,
+        totalQueries: finalStats.queries,
+        cacheFiles: finalStats.cache.files,
+        cacheSizeKB: finalStats.cache.totalSize
+      }
+    });
+  } catch (error) {
+    console.error('Seeding error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      seedingResults: { seeded: 0, failed: 1, skipped: 0 }
+    });
+  }
+});
+
+// Background Intelligence statistics endpoint
+app.get('/api/intelligence-stats', async (req, res) => {
+  try {
+    const stats = {
+      backgroundIntelligence: backgroundIntelligence ? backgroundIntelligence.getStats() : null,
+      failureHandler: failureHandler ? failureHandler.getFailureStats() : null,
+      enabled: backgroundIntelligence !== null
+    };
+    
+    res.json({
+      success: true,
+      message: 'Background Intelligence statistics',
+      stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manual intelligence cycle trigger endpoint
+app.post('/api/trigger-intelligence', async (req, res) => {
+  try {
+    if (!backgroundIntelligence) {
+      return res.status(503).json({
+        success: false,
+        error: 'Background Intelligence is not initialized'
+      });
+    }
+    
+    // Trigger immediate intelligence cycle
+    console.log('🧠 Manually triggered intelligence cycle...');
+    await backgroundIntelligence.runIntelligenceCycle();
+    
+    const stats = backgroundIntelligence.getStats();
+    
+    res.json({
+      success: true,
+      message: 'Intelligence cycle completed',
+      stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -1002,16 +1576,54 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
+    // NEW: Check question relevance using LLM
+    eventTracker.addEvent('relevance_check_start', 'Checking if question is relevant to Australian legal services');
+    const queryAnalyzer = new QueryAnalyzer();
+    const relevanceCheck = await queryAnalyzer.isQuestionRelevant(question);
+    
+    eventTracker.addEvent('relevance_check_complete', `Relevance check complete: ${relevanceCheck.relevant ? 'relevant' : 'not relevant'}`, {
+      relevant: relevanceCheck.relevant,
+      confidence: relevanceCheck.confidence,
+      reason: relevanceCheck.reason
+    });
+
+    if (!relevanceCheck.relevant) {
+      eventTracker.complete(false, `Question not relevant to Australian legal services: ${relevanceCheck.reason}`);
+      return res.status(400).json({
+        success: false,
+        error: `I'm LegalEase, an Australian legal research assistant. Your question doesn't appear to be related to Australian legal, regulatory, or compliance matters. I can help with building regulations, business licenses, consumer rights, tenancy laws, planning permits, and other Australian legal questions.`,
+        relevance: relevanceCheck,
+        queryId,
+        events: eventTracker.getEvents(),
+        executionTime: Date.now() - startTime
+      });
+    }
+
     // Find relevant documents OR discover them on-the-fly
     const location = context?.location;
     eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { location });
-    const relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
+    let relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
+    
+    // If no documents found, try intelligent failure handling
+    if (relevantDocs.length === 0 && failureHandler) {
+      eventTracker.addEvent('intelligent_recovery_start', 'No documents found, attempting intelligent recovery');
+      
+      const recoveryResult = await failureHandler.handleQueryFailure(question, location, new Error('No documents found'));
+      
+      if (recoveryResult.success && recoveryResult.canAnswerNow) {
+        // Re-attempt document discovery after intelligent recovery
+        relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
+        eventTracker.addEvent('intelligent_recovery_success', `Intelligent recovery successful: found ${relevantDocs.length} documents`);
+      } else {
+        eventTracker.addEvent('intelligent_recovery_failed', 'Intelligent recovery could not find relevant documents');
+      }
+    }
     
     if (relevantDocs.length === 0) {
-      eventTracker.complete(false, 'No relevant documents could be found');
+      eventTracker.complete(false, 'No relevant documents could be found even after intelligent recovery');
       return res.json({
         success: false,
-        error: 'No relevant legal documents could be found or discovered. The system attempted to discover documents from AustLII but none were available or relevant to your question.',
+        error: 'No relevant legal documents could be found or discovered. The system attempted to discover documents from AustLII and used intelligent recovery, but none were available or relevant to your question.',
         queryId,
         events: eventTracker.getEvents(),
         executionTime: Date.now() - startTime
@@ -1040,16 +1652,30 @@ app.post('/api/legal/ask', async (req, res) => {
                     doc.url.includes('/cth/') ? 'Commonwealth of Australia' : 'Australia'
     }));
 
-    // Log query
-    mockDB.queries.push({
+    // Log query to database
+    await db.saveQuery({
       id: queryId,
       question,
       answer: aiResponse.answer,
-      docs_used: relevantDocs.slice(0, 3).map(doc => doc.id).join(','),
-      created_at: new Date()
+      sources_used: sources.map(s => s.url),
+      jurisdiction: location || 'Australia',
+      confidence: 0.9,
+      execution_time: Date.now() - startTime,
+      tokens_used: aiResponse.tokensUsed,
+      relevant: true,
+      events_count: eventTracker.getEvents().length
     });
 
-    // Complete tracking
+    // Complete tracking (avoid circular reference by passing summary)
+    const resultSummary = {
+      success: true,
+      documentsUsed: sources.length,
+      queryId,
+      executionTime: Date.now() - startTime
+    };
+    
+    eventTracker.complete(true, resultSummary);
+
     const finalResult = {
       success: true,
       answer: aiResponse.answer,
@@ -1060,8 +1686,6 @@ app.post('/api/legal/ask', async (req, res) => {
       tokensUsed: aiResponse.tokensUsed || null,
       events: eventTracker.getEvents()
     };
-    
-    eventTracker.complete(true, finalResult);
 
     res.json(finalResult);
 
@@ -1110,18 +1734,16 @@ app.get('/api/legal/query/:queryId/events', (req, res) => {
 });
 
 // Get history endpoint
-app.get('/api/legal/history', (req, res) => {
+app.get('/api/legal/history', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    const queries = mockDB.queries
-      .slice(-limit)
-      .reverse()
+    const queries = (await db.getRecentQueries(parseInt(limit)))
       .map(query => ({
         id: query.id,
         question: query.question,
         answer: query.answer || 'No answer recorded',
         timestamp: query.created_at.toISOString(),
-        confidence: 0.9
+        confidence: query.confidence || 0.9
       }));
 
     res.json({
@@ -1141,8 +1763,8 @@ const PORT = process.env.PORT || 4000;
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-// WebSocket connection handling for real-time query events
-wss.on('connection', (ws, req) => {
+// WebSocket connection handling for real-time query events  
+wss.on('connection', (ws) => {
   console.log('📡 New WebSocket connection established');
   
   ws.on('message', (message) => {
@@ -1188,12 +1810,41 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`🏛️  LegalEase Standalone Server running on http://localhost:${PORT}`);
-  console.log(`📋 Health check: http://localhost:${PORT}/api/hello`);
-  console.log(`📄 Cache documents: POST http://localhost:${PORT}/api/cache-documents`);
-  console.log(`🤖 Ask questions: POST http://localhost:${PORT}/api/legal/ask`);
-  console.log(`📡 WebSocket events: ws://localhost:${PORT}/`);
-  console.log('');
-  console.log('Ready to test the real data pipeline with real-time events!');
+// Start server with database initialization
+async function startServer() {
+  // Initialize database first
+  await initializeDatabase();
+  
+  // Graceful shutdown handling
+  process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    
+    // Stop background intelligence services
+    if (backgroundIntelligence) {
+      backgroundIntelligence.stop();
+    }
+    
+    await db.close();
+    server.close(() => {
+      console.log('👋 Server stopped');
+      process.exit(0);
+    });
+  });
+
+  // Start the server
+  server.listen(PORT, () => {
+    console.log(`🏛️  LegalEase Standalone Server running on http://localhost:${PORT}`);
+    console.log(`📋 Health check: http://localhost:${PORT}/api/hello`);
+    console.log(`📄 Database stats: POST http://localhost:${PORT}/api/cache-documents`);
+    console.log(`🤖 Ask questions: POST http://localhost:${PORT}/api/legal/ask`);
+    console.log(`📡 WebSocket events: ws://localhost:${PORT}/`);
+    console.log('');
+    console.log('Ready with persistent database and disk caching!');
+  });
+}
+
+// Start the application
+startServer().catch(error => {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
 });

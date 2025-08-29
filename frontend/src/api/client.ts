@@ -35,6 +35,15 @@ export class AskQuestionRequest extends BaseRequest<AskQuestionResponse> {
   }
 }
 
+export interface QueryEvent {
+  queryId: string;
+  type: string;
+  message: string;
+  timestamp: number;
+  elapsedTime: number;
+  data?: any;
+}
+
 export interface AskQuestionResponse {
   success: boolean;
   answer?: string;
@@ -46,6 +55,8 @@ export interface AskQuestionResponse {
   confidence?: number;
   queryId: string;
   executionTime: number;
+  tokensUsed?: number;
+  events?: QueryEvent[];
   error?: string;
 }
 
@@ -69,31 +80,49 @@ export interface HealthCheckResponse {
 // Frontend API Client
 export class ApiClient {
   private baseUrl: string;
+  private eventCallbacks: Map<string, (event: QueryEvent) => void> = new Map();
+  private websocket: WebSocket | null = null;
 
-  constructor(baseUrl: string = '/') { // Use relative URLs in frontend
+  constructor(baseUrl: string = 'http://localhost:4000') {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
   }
 
-  // Single invoke method - constructs HTTP request from message metadata
-  async invoke<TResponse>(request: BaseRequest<TResponse>): Promise<TResponse> {
-    const url = `${this.baseUrl}/api/message`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request)
-    });
+  // Connect to WebSocket for real-time events
+  private connectWebSocket() {
+    if (this.websocket?.readyState === WebSocket.OPEN) return;
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+    const wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+    this.websocket = new WebSocket(wsUrl);
 
-    return await response.json() as TResponse;
+    this.websocket.onmessage = (event) => {
+      try {
+        const queryEvent: QueryEvent = JSON.parse(event.data);
+        const callback = this.eventCallbacks.get(queryEvent.queryId);
+        if (callback) {
+          callback(queryEvent);
+        }
+      } catch (error) {
+        console.warn('Failed to parse WebSocket event:', error);
+      }
+    };
+
+    this.websocket.onerror = (error) => {
+      console.warn('WebSocket error:', error);
+    };
   }
 
-  // Convenience method for asking legal questions
+  // Subscribe to real-time events for a query
+  onQueryEvents(queryId: string, callback: (event: QueryEvent) => void) {
+    this.eventCallbacks.set(queryId, callback);
+    this.connectWebSocket();
+  }
+
+  // Unsubscribe from query events
+  offQueryEvents(queryId: string) {
+    this.eventCallbacks.delete(queryId);
+  }
+
+  // Convenience method for asking legal questions with real-time events
   async askLegalQuestion(params: {
     question: string;
     sessionId?: string;
@@ -101,21 +130,52 @@ export class ApiClient {
     context?: {
       location?: string;
     };
+    onEvent?: (event: QueryEvent) => void;
   }): Promise<AskQuestionResponse> {
-    const request = new AskQuestionRequest({
+    // Direct call to our standalone server API
+    const url = `${this.baseUrl}/api/legal/ask`;
+    
+    const requestBody = {
       question: params.question,
-      sessionId: params.sessionId || this.generateSessionId(),
-      userLocale: params.userLocale || 'en-AU',
-      context: params.context
+      context: params.context || {}
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
     });
 
-    return await this.invoke(request);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json() as AskQuestionResponse;
+
+    // If there's an event callback and we have a queryId, set up real-time listening
+    if (params.onEvent && result.queryId) {
+      this.onQueryEvents(result.queryId, params.onEvent);
+    }
+
+    return result;
   }
 
   // Convenience method for health check
   async healthCheck(): Promise<HealthCheckResponse> {
-    const request = new HealthCheckRequest();
-    return await this.invoke(request);
+    const response = await fetch(`${this.baseUrl}/api/hello`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json() as HealthCheckResponse;
   }
 
   // Generate a session ID if none provided
