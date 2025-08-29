@@ -1,13 +1,17 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "WebFetch(domain:www.austlii.edu.au)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  },
   "project": {
     "name": "LegalEase",
     "type": "govhack-competition",
     "deadline": "2025-09-01T17:00:00+10:00"
-  },
-  "permissions": {
-    "allow": ["Bash(mkdir:*)"],
-    "deny": [],
-    "ask": []
   },
   "development": {
     "backend": {
