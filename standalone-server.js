@@ -427,11 +427,16 @@ class StandaloneDocumentFetcher {
 class QueryAnalyzer {
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY;
+    this.isOpenRouter = this.apiKey && this.apiKey.startsWith('sk-or-v1-');
+    this.baseURL = this.isOpenRouter 
+      ? 'https://openrouter.ai/api/v1'
+      : 'https://api.openai.com/v1';
   }
 
   async analyzeQuery(question, location, attempt = 1) {
     if (!this.apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is required');
+      console.log('No API key found, using fallback analysis');
+      return this.createFallbackAnalysis(question, location);
     }
 
     const prompt = `You are an Australian legal research assistant. Analyze this legal question and extract relevant search terms for finding Australian legal documents.
@@ -461,15 +466,28 @@ Respond in JSON format:
   "alternative_terms": ["fencing", "boundary disputes", "adjoining properties", "residential property"]
 }`;
 
+    // Choose model based on provider
+    const model = this.isOpenRouter 
+      ? 'openai/gpt-4o-mini' // OpenRouter format for GPT-4o-mini
+      : 'gpt-4o-mini';       // Direct OpenAI format
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`
+    };
+
+    // Add OpenRouter-specific headers
+    if (this.isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://govhack2025.com';
+      headers['X-Title'] = 'LegalEase - Legal Query Analysis';
+    }
+
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
+        headers,
         body: JSON.stringify({
-          model: 'gpt-4o-mini', // Cheap model for analysis
+          model, // Cheap model for analysis
           messages: [
             {
               role: 'system',
@@ -536,11 +554,20 @@ Respond in JSON format:
   }
 }
 
-// Enhanced OpenAI client with two-tier LLM system
+// Enhanced OpenAI/OpenRouter client with two-tier LLM system
 class StandaloneOpenAIClient {
+  constructor() {
+    this.apiKey = process.env.OPENAI_API_KEY;
+    this.isOpenRouter = this.apiKey && this.apiKey.startsWith('sk-or-v1-');
+    this.baseURL = this.isOpenRouter 
+      ? 'https://openrouter.ai/api/v1'
+      : 'https://api.openai.com/v1';
+    
+    console.log(`🔑 Using ${this.isOpenRouter ? 'OpenRouter' : 'OpenAI'} API`);
+  }
+
   async generateAnswer(question, context, userLocale = 'en-AU') {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
 
@@ -563,15 +590,28 @@ LEGAL DISCLAIMER TO INCLUDE:
 
 Please provide a clear, practical answer that helps the user understand their obligations or options under Australian law.`;
 
+    // Choose model based on provider
+    const model = this.isOpenRouter 
+      ? 'openai/gpt-4o' // OpenRouter format for GPT-4o
+      : 'gpt-4o';       // Direct OpenAI format
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.apiKey}`
+    };
+
+    // Add OpenRouter-specific headers
+    if (this.isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://govhack2025.com';
+      headers['X-Title'] = 'LegalEase - Australian Legal AI Assistant';
+    }
+
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
+        headers,
         body: JSON.stringify({
-          model: 'gpt-4o', // Using powerful LLM for document analysis and response generation
+          model,
           messages: [
             {
               role: 'system',
