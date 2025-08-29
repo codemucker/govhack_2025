@@ -703,6 +703,59 @@ class AustLIIDiscovery {
   }
 
   // All topic extraction and URL generation is now handled dynamically by LLM with database tags
+
+  // Generate potential links based on question and documents (before AI response)
+  generatePotentialLinks(question, documents, jurisdiction, legal_areas, keywords) {
+    const potentialLinks = [];
+    const lowerQuestion = question.toLowerCase();
+    
+    // Generate permit/license application links based on question content
+    const permitLinks = this.generatePermitLinks(question, jurisdiction, legal_areas);
+    potentialLinks.push(...permitLinks);
+    
+    // Generate authority contact links
+    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas);
+    potentialLinks.push(...authorityLinks);
+    
+    // Generate document-specific links (sections, chapters)
+    for (const doc of documents) {
+      const baseUrl = doc.url;
+      const docTitle = this.getDocumentTitle(doc.url);
+      
+      // Add general document link
+      potentialLinks.push({
+        type: 'legal_document',
+        title: `${docTitle}`,
+        description: `Full text of the ${docTitle}`,
+        url: baseUrl,
+        document_title: docTitle,
+        jurisdiction: jurisdiction.toUpperCase(),
+        provision_type: 'document'
+      });
+    }
+    
+    return potentialLinks.slice(0, 15); // Limit for prompt size
+  }
+
+  // Extract which links were actually used in the AI response
+  extractUsedLinksFromResponse(aiResponse, potentialLinks) {
+    const usedLinks = [];
+    
+    // Find markdown links in the response
+    const linkMatches = aiResponse.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g);
+    
+    for (const match of linkMatches) {
+      const linkUrl = match[2];
+      
+      // Find the corresponding potential link
+      const potentialLink = potentialLinks.find(link => link.url === linkUrl);
+      if (potentialLink) {
+        usedLinks.push(potentialLink);
+      }
+    }
+    
+    return usedLinks;
+  }
 }
 
 // Enhanced document fetcher with lazy ingestion
@@ -1615,10 +1668,17 @@ class StandaloneOpenAIClient {
     console.log(`🔑 Using ${this.isOpenRouter ? 'OpenRouter' : 'OpenAI'} API`);
   }
 
-  async generateAnswer(question, context, userLocale = 'en-AU') {
+  async generateAnswer(question, context, userLocale = 'en-AU', deepLinks = []) {
     if (!this.apiKey) {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
+
+    // Build deep links section for the prompt
+    const deepLinksText = deepLinks.length > 0 ? 
+      `\nAVAILABLE LINKS TO EMBED IN YOUR RESPONSE:
+${deepLinks.map(link => `- [${link.title}](${link.url}) - ${link.description || ''}`).join('\n')}
+
+` : '';
 
     const prompt = `Based on the following Australian legal documents, please answer this question:
 
@@ -1626,13 +1686,22 @@ QUESTION: ${question}
 
 CONTEXT FROM LEGAL DOCUMENTS:
 ${context}
-
+${deepLinksText}
 INSTRUCTIONS:
 - Answer in Australian English using Australian legal terminology
 - Base your answer ONLY on the provided legal documents
 - If the documents don't contain relevant information, state this clearly
 - Include specific references to which acts or regulations you're citing
+- **IMPORTANT**: When mentioning specific laws, permits, applications, or government services, embed the relevant links provided above directly in your text using markdown format [text](url)
+- **EMBED LINKS WITHIN SENTENCES**: Instead of listing links separately, include them naturally in your response where relevant (e.g., "You'll need to apply for a [Food Business License](url) through Queensland Health")
+- Structure your response with clear numbered steps or bullet points
 - Always end with the standard legal disclaimer
+
+EXAMPLE OF GOOD LINK EMBEDDING:
+"To open a café in Brisbane, you'll need to:
+1. Register your business with [ASIC](business-registration-url) 
+2. Apply for a [Food Business License](food-license-url) from Queensland Health
+3. Contact [Brisbane City Council](council-url) for local permits"
 
 LEGAL DISCLAIMER TO INCLUDE:
 "⚠️ IMPORTANT: This information is general in nature and should not be considered legal advice. Australian laws can be complex and may vary by jurisdiction. For specific legal matters, please consult with a qualified legal professional or contact the relevant government department."
@@ -2127,9 +2196,22 @@ app.post('/api/legal/ask', async (req, res) => {
       .map(doc => `DOCUMENT: ${doc.url}\nCONTENT: ${doc.content.substring(0, 2000)}...\n`)
       .join('\n\n');
 
-    // Generate AI response
-    eventTracker.addEvent('ai_generation_start', 'Starting AI response generation', { documentCount: relevantDocs.length });
-    const aiResponse = await openaiClient.generateAnswer(question, docContext, userLocale);
+    // Pre-generate deep links before AI response to enable embedding
+    const firstDoc = relevantDocs.length > 0 ? relevantDocs[0] : null;
+    const extractedJurisdiction = firstDoc ? documentFetcher.discovery.extractJurisdictionFromUrl(firstDoc.url) : 'qld';
+    
+    const potentialDeepLinks = documentFetcher.discovery ? 
+      documentFetcher.discovery.generatePotentialLinks(
+        question,
+        relevantDocs.slice(0, 3),
+        extractedJurisdiction,
+        ['food safety', 'business regulations'], // Fallback legal areas
+        ['licence', 'permit', 'registration'] // Fallback keywords
+      ) : [];
+
+    // Generate AI response with embedded links
+    eventTracker.addEvent('ai_generation_start', 'Starting AI response generation', { documentCount: relevantDocs.length, potentialLinks: potentialDeepLinks.length });
+    const aiResponse = await openaiClient.generateAnswer(question, docContext, userLocale, potentialDeepLinks);
     eventTracker.addEvent('ai_generation_complete', 'AI response generated successfully');
 
     // Prepare sources with scoring information
@@ -2163,17 +2245,11 @@ app.post('/api/legal/ask', async (req, res) => {
       };
     });
     
-    // Generate deep links to specific provisions and permits
-    const firstDoc = relevantDocs.length > 0 ? relevantDocs[0] : null;
-    const extractedJurisdiction = firstDoc ? documentFetcher.discovery.extractJurisdictionFromUrl(firstDoc.url) : 'qld';
-    
+    // Extract actually used deep links from the AI response
     const deepLinks = documentFetcher.discovery ? 
-      documentFetcher.discovery.generateDeepLinks(
+      documentFetcher.discovery.extractUsedLinksFromResponse(
         aiResponse.answer, 
-        relevantDocs.slice(0, 3),
-        extractedJurisdiction,
-        ['food safety', 'business regulations'], // Fallback legal areas
-        ['licence', 'permit', 'registration'] // Fallback keywords
+        potentialDeepLinks
       ) : [];
 
     // Log query to database
