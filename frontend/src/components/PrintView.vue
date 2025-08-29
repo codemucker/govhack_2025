@@ -228,6 +228,15 @@ interface Props {
   }
 }
 
+/**
+ * Generate a unique report ID
+ */
+function generateReportId(): string {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 7)
+  return `LER-${timestamp}-${random}`.toUpperCase()
+}
+
 const props = withDefaults(defineProps<Props>(), {
   searchData: () => ({
     query: '',
@@ -240,19 +249,10 @@ const props = withDefaults(defineProps<Props>(), {
     conflicts: []
   }),
   metadata: () => ({
-    reportId: generateReportId(),
+    reportId: '',
     generatedAt: Date.now()
   })
 })
-
-/**
- * Generate a unique report ID
- */
-function generateReportId(): string {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substring(2, 7)
-  return `LER-${timestamp}-${random}`.toUpperCase()
-}
 
 /**
  * Format date for display
