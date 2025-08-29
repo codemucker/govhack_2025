@@ -78,6 +78,11 @@ interface TriageResponse {
   warningsAndRisks: string[];
 }
 
+interface QueryValidationRequest {
+  query: string;
+  address?: string;
+}
+
 interface ValidationResponse {
   valid: boolean;
   errors: string[];
@@ -87,7 +92,7 @@ interface ValidationResponse {
 // Validation endpoint for query inputs
 export const validateQuery = api(
   { method: "POST", path: "/api/v1/triage/validate" },
-  async (req: Pick<TriageRequest, 'query' | 'address'>): Promise<ValidationResponse> => {
+  async (req: QueryValidationRequest): Promise<ValidationResponse> => {
     const errors: string[] = [];
     const suggestions: string[] = [];
 
@@ -135,8 +140,9 @@ export const validateQuery = api(
 export const triage = api(
   { method: "POST", path: "/api/v1/triage" },
   async (req: TriageRequest): Promise<TriageResponse> => {
-    // Validate input first
-    const validation = await validateQuery({ query: req.query, address: req.address });
+    // Validate input first  
+    const validationRequest: QueryValidationRequest = { query: req.query, address: req.address };
+    const validation = await validateQuery(validationRequest);
     if (!validation.valid) {
       throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
     }
@@ -152,10 +158,15 @@ export const triage = api(
   }
 );
 
+interface DemoTriageRequest {
+  query: string;
+  address?: string;
+}
+
 // Demo/public endpoint with simplified interface for frontend testing
 export const triageDemo = api(
   { method: "POST", path: "/api/v1/triage/demo-public" },
-  async (req: { query: string; address?: string }): Promise<TriageResponse> => {
+  async (req: DemoTriageRequest): Promise<TriageResponse> => {
     // Convert simplified request to full triage request
     const fullRequest: TriageRequest = {
       query: req.query,

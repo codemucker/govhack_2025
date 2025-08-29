@@ -9,9 +9,9 @@ const BASE_URL = 'http://localhost:4000';
 const CRITICAL_TEST_CASES = [
   {
     category: 'Business Licensing',
-    question: 'I want to open a cafe in Brisbane, what permits do I require?',
+    question: 'what permits are required to opena cafe in maroochydore?',
     expectedKeywords: ['food business', 'license', 'permit', 'health', 'council'],
-    location: 'Brisbane, QLD',
+    location: 'Maroochydore, QLD',
     minDocuments: 2,
     description: 'Food business licensing in Queensland'
   },
