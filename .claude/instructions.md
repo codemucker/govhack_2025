@@ -50,7 +50,7 @@
   - At least one @example showing usage
   - @throws for error conditions
 - **Detailed implementation**: Use code comments, not README files
-- **Locale compliance**: Follow Australian English in documentation (see `docs/locale.md`)
+- **Locale compliance**: Follow Australian English in documentation (see `.claude/locale.md`)
 - **Reference**: See `docs/technical.md` for complete documentation guidelines
 
 ### Context Management
