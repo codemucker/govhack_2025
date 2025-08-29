@@ -152,19 +152,17 @@ Each profile has: **system guidelines**, **required facts**, **linking policy**,
 
 ```
 /legalease
-  /services/api/index.ts (API gateway)
-  /services/triage/index.ts (intent/entities, clarifying Qs)
-  /services/jurisdiction/index.ts (geo lookup, council/state mapping)
-  /services/router/index.ts (profile selection)
-  /services/sources/index.ts (providers to registries/APIs)
-  /services/compose/index.ts (plan builder, JSON formatter)
-  /services/conflict/index.ts (comparators, notes)
-  /services/store/index.ts (redis/pg cache, client plans)
+  /api/hello.ts (hello world & health endpoints)
+  /api/triage.ts (main triage service, council search)
+  /api/site.ts (SPA serving for non-API routes)
   /frontend (Vue.js SPA)
     /src/components
     /src/views
-    /src/services
-    /src/store
+    /src/main.ts
+    /src/App.vue
+    /index.html
+    /vite.config.ts
+  /dist (built frontend, served by Encore.dev)
 ```
 
 ### Encore.dev API Endpoints

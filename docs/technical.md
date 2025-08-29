@@ -196,14 +196,18 @@ var userName = "John"
 ├── docs/              # Project documentation
 │   ├── technical.md   # This file (coding standards)
 │   └── architecture.md # Infrastructure and framework
-├── src/               # Source code root
-│   ├── api/           # Encore backend application
-│   │   ├── services/  # Encore services
-│   │   ├── modules/   # Shared business logic
-│   │   └── lib/       # Utilities
-│   └── frontend/      # Vue/Hugo frontend
-│       └── src/       # Frontend source code
-├── scripts/           # Build and automation
+├── api/               # Encore.dev backend services
+│   ├── hello.ts       # Hello world endpoint
+│   ├── triage.ts      # Main triage service
+│   └── site.ts        # SPA serving endpoint
+├── frontend/          # Vue.js frontend application
+│   ├── src/           # Frontend source code
+│   │   ├── views/     # Vue.js pages
+│   │   ├── components/ # Vue.js components
+│   │   └── main.ts    # Application entry point
+│   ├── index.html     # HTML template
+│   └── vite.config.ts # Vite configuration
+├── dist/              # Built frontend (gitignored, served by Encore)
 ├── node_modules/      # Hoisted to root (gitignored)
 ├── package.json       # Root package.json
 └── package-lock.json  # npm lock file
@@ -568,13 +572,16 @@ Types: feat, fix, docs, style, refactor, test, chore
   "scripts": {
     "dev": "npm run dev:backend & npm run dev:frontend",
     "dev:backend": "encore run",
-    "dev:frontend": "cd frontend && vite",
+    "dev:frontend": "npm run dev --prefix frontend",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "encore build",
-    "build:frontend": "cd frontend && vite build",
+    "build:frontend": "npm run build --prefix frontend",
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "encore test",
-    "test:frontend": "cd frontend && vitest"
+    "test:frontend": "npm test --prefix frontend",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "eslint api/**/*.ts",
+    "lint:frontend": "npm run lint --prefix frontend"
   }
 }
 ```

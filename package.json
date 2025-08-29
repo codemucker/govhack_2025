@@ -5,25 +5,29 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "frontend",
-    "services"
+    "frontend"
   ],
   "scripts": {
-    "dev": "npm run dev:backend & npm run dev:frontend",
+    "dev": "npm run dev:frontend & npm run dev:backend",
     "dev:backend": "encore run",
-    "dev:frontend": "cd frontend && npm run dev",
-    "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "encore build",
-    "build:frontend": "cd frontend && npm run build",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "encore check",
+    "build:frontend": "npm run build --prefix frontend && npm run copy:dist",
+    "copy:dist": "rm -rf dist && cp -r frontend/dist .",
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "encore test",
-    "test:frontend": "cd frontend && npm test",
+    "test:frontend": "npm test --prefix frontend",
     "lint": "npm run lint:backend && npm run lint:frontend",
-    "lint:backend": "eslint services/**/*.ts",
-    "lint:frontend": "cd frontend && npm run lint",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf node_modules frontend/node_modules services/node_modules",
-    "install:all": "npm install && cd frontend && npm install"
+    "lint:backend": "eslint api/**/*.ts",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "tsc --noEmit",
+    "typecheck:frontend": "npm run typecheck --prefix frontend",
+    "clean": "rm -rf node_modules frontend/node_modules dist",
+    "clean:dist": "rm -rf dist",
+    "install:all": "npm install && npm install --prefix frontend",
+    "deploy": "npm run build && encore deploy"
   },
   "keywords": [
     "govhack",
