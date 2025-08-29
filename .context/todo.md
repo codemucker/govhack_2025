@@ -1,4 +1,4 @@
-# GovHack 2025 Competition Runsheet
+# GovHack 2025: AU Red Tape Navigator - Competition Runsheet
 
 ## Competition Timeline
 
@@ -10,42 +10,77 @@
 
 1. ✅ Team registration in Hackerspace
 2. ✅ Project page with description
-3. ✅ Challenge category selection
-4. ✅ Open data source URLs
-5. ⏳ Working prototype/demo
+3. ✅ Challenge category selection (Primary: The Red Tape Navigator)
+4. ✅ Open data source URLs (ABLIS, Legislation registers, Council data)
+5. ⏳ Working prototype/demo (Vue.js + Encore.dev)
 6. ⏳ 3-minute video pitch
 7. ⏳ Evidence repository URL (GitHub)
 
 ---
 
+## AGENT WORK ALLOCATION
+
+### Agent 1: Backend Services (TypeScript/Encore.dev)
+**Focus**: API services, data integration, business logic
+**Directory**: `/services/*`
+**Commit Branch**: `feature/backend-services`
+
+### Agent 2: Frontend Application (Vue.js/TypeScript)
+**Focus**: UI components, user experience, visualizations
+**Directory**: `/frontend/*`
+**Commit Branch**: `feature/frontend-app`
+
+### Shared Resources (Coordinate via main branch)
+- `/docs/*` - Documentation (read-only for both)
+- `/.context/*` - Project context (read-only for both)
+- `/shared/types/*` - TypeScript interfaces (Agent 1 creates, Agent 2 consumes)
+
+---
+
 ## Day 1: Friday 30/08/2025 (Evening 7pm-11pm)
 
-### Setup & Planning (7:00pm - 8:30pm)
+### Setup & Planning (7:00pm - 8:30pm) [BOTH AGENTS]
 
 - [ ] **Team Registration**
-
   - [ ] Complete Hackerspace team setup
-  - [ ] Assign team captain role
-  - [ ] Select challenge categories
+  - [ ] Select "The Red Tape Navigator" as primary challenge
+  - [ ] Add secondary challenges (AI transparency, Community agents, etc.)
 
-- [ ] **Project Setup**
+- [ ] **Repository Setup** [Agent 1]
+  - [ ] Initialize Git repository with develop branch
+  - [ ] Create feature branches for each agent
+  - [ ] Set up .gitignore for TypeScript/Node projects
+  - [ ] Create directory structure per architecture
 
-  - [ ] Create GitHub repository for evidence
-  - [ ] Initialize project structure per architecture docs
-  - [ ] Set up development environment (Go, Hugo, Encore.dev)
-
-- [ ] **Research & Data Collection**
-  - [ ] Identify Australian open datasets for migration statistics
-  - [ ] Locate Services Australia/Centrelink processing data
-  - [ ] Find ABS census data
-  - [ ] Document all data source URLs for submission
+- [ ] **Data Source Research** [Agent 2]
+  - [ ] Document ABLIS API endpoints
+  - [ ] Map Federal Register of Legislation structure
+  - [ ] Identify NSW, VIC, QLD planning portal APIs
+  - [ ] List council data sources (at least 5 major councils)
 
 ### Initial Development (8:30pm - 11:00pm)
 
-- [ ] **Core API Structure**
-  - [ ] Set up Go module with Encore.dev
-  - [ ] Implement basic HTTP handlers
-  - [ ] Create initial functions
+#### Agent 1: Backend Foundation
+- [ ] **Encore.dev Setup**
+  - [ ] Initialize Encore.dev TypeScript project
+  - [ ] Create service structure:
+    - [ ] `/services/api` - API gateway
+    - [ ] `/services/triage` - Query processing
+    - [ ] `/services/jurisdiction` - Location resolver
+  - [ ] Define shared TypeScript interfaces in `/shared/types`
+  - [ ] Implement health check endpoint
+  - [ ] **COMMIT**: "feat: Initialize Encore.dev backend structure"
+
+#### Agent 2: Frontend Foundation
+- [ ] **Vue.js Setup**
+  - [ ] Initialize Vue 3 project with Vite and TypeScript
+  - [ ] Install core dependencies (Vue Router, Pinia, Axios)
+  - [ ] Create component structure:
+    - [ ] `/components/search` - Query input
+    - [ ] `/components/results` - Response display
+    - [ ] `/components/common` - Shared UI elements
+  - [ ] Set up Tailwind CSS for styling
+  - [ ] **COMMIT**: "feat: Initialize Vue.js frontend structure"
 
 ---
 
@@ -53,37 +88,123 @@
 
 ### Morning Session (8:00am - 12:00pm)
 
-- [ ] **API Enhancement**
+#### Agent 1: Core Services Implementation
+- [ ] **Triage Service** (8:00am - 9:30am)
+  - [ ] Implement natural language parser
+  - [ ] Create entity extraction (location, activity, industry)
+  - [ ] Build intent classifier
+  - [ ] Add confidence scoring
+  - [ ] **COMMIT**: "feat: Implement triage service with NLP"
 
-  - [ ] TBA
+- [ ] **Jurisdiction Service** (9:30am - 11:00am)
+  - [ ] Build address to council mapper
+  - [ ] Implement state/territory resolver
+  - [ ] Add overlay detection (heritage, flood zones)
+  - [ ] Create conflict detection logic
+  - [ ] **COMMIT**: "feat: Add jurisdiction resolution service"
 
-- [ ] **Data Integration**
-  - [ ] Connect to Australian data APIs
-  - [ ] Process and cache relevant statistics
-  - [ ] Create data analysis functions
-  - [ ] Generate demographic visualisations
+- [ ] **Router Service** (11:00am - 12:00pm)
+  - [ ] Implement domain classification
+  - [ ] Create specialist profile routing
+  - [ ] Add multi-domain handling
+  - [ ] **COMMIT**: "feat: Add domain routing service"
+
+#### Agent 2: User Interface Development
+- [ ] **Search Interface** (8:00am - 9:30am)
+  - [ ] Create main search component with autocomplete
+  - [ ] Add address input with validation
+  - [ ] Implement query history/suggestions
+  - [ ] Add loading states and animations
+  - [ ] **COMMIT**: "feat: Implement search interface"
+
+- [ ] **Results Display** (9:30am - 11:00am)
+  - [ ] Build requirements checklist component
+  - [ ] Create timeline visualization
+  - [ ] Add conflict warning displays
+  - [ ] Implement expandable details
+  - [ ] **COMMIT**: "feat: Add results display components"
+
+- [ ] **Navigation & Layout** (11:00am - 12:00pm)
+  - [ ] Create app header with branding
+  - [ ] Add responsive navigation
+  - [ ] Build footer with disclaimers
+  - [ ] Implement dark mode toggle
+  - [ ] **COMMIT**: "feat: Add navigation and layout"
 
 ### Afternoon Session (1:00pm - 6:00pm)
 
-- [ ] **Frontend Development**
+#### Agent 1: Data Integration & Processing
+- [ ] **Source Adapters** (1:00pm - 3:00pm)
+  - [ ] ABLIS integration adapter
+  - [ ] Legislation register connector
+  - [ ] Council API adapters (Brisbane, Sydney, Melbourne)
+  - [ ] Caching layer with Redis
+  - [ ] **COMMIT**: "feat: Add government data source adapters"
 
-  - [ ] Build interactive demo interface
-  - [ ] Add data visualisation charts
-  - [ ] Implement results display with explanations
-  - [ ] Create responsive design for mobile
+- [ ] **Compose Service** (3:00pm - 4:30pm)
+  - [ ] Build response formatter
+  - [ ] Create JSON contract implementation
+  - [ ] Add citation management
+  - [ ] Implement confidence aggregation
+  - [ ] **COMMIT**: "feat: Add response composition service"
 
-- [ ] **Testing & Validation**
-  - [ ] Test cases
-  - [ ] Validate accuracy against known cases
-  - [ ] Performance testing and optimisation
-  - [ ] Cross-browser compatibility testing
+- [ ] **API Gateway** (4:30pm - 6:00pm)
+  - [ ] Implement main API endpoints
+  - [ ] Add rate limiting
+  - [ ] Configure CORS policies
+  - [ ] Add request validation
+  - [ ] **COMMIT**: "feat: Complete API gateway"
+
+#### Agent 2: Advanced UI Features
+- [ ] **Interactive Features** (1:00pm - 3:00pm)
+  - [ ] Add step-by-step wizard mode
+  - [ ] Implement progress tracking
+  - [ ] Create save/export functionality
+  - [ ] Add print-friendly view
+  - [ ] **COMMIT**: "feat: Add interactive features"
+
+- [ ] **Data Visualizations** (3:00pm - 4:30pm)
+  - [ ] Create jurisdiction map component
+  - [ ] Add requirements timeline chart
+  - [ ] Build confidence meter displays
+  - [ ] Implement cost calculator
+  - [ ] **COMMIT**: "feat: Add data visualizations"
+
+- [ ] **Accessibility & i18n** (4:30pm - 6:00pm)
+  - [ ] Implement WCAG 2.1 AA compliance
+  - [ ] Add keyboard navigation
+  - [ ] Create screen reader support
+  - [ ] Add basic multi-language support (EN, ZH, AR)
+  - [ ] **COMMIT**: "feat: Add accessibility and i18n"
 
 ### Evening Session (7:00pm - 10:00pm)
 
-- [ ] **Deployment & Polish**
-  - [ ] Deploy API to Encore cloud
-  - [ ] Configure CORS and security settings
-  - [ ] Final UI/UX improvements
+#### Agent 1: Testing & Optimization
+- [ ] **API Testing** (7:00pm - 8:30pm)
+  - [ ] Unit tests for core services
+  - [ ] Integration tests for data adapters
+  - [ ] Load testing with sample queries
+  - [ ] **COMMIT**: "test: Add backend test coverage"
+
+- [ ] **Performance Optimization** (8:30pm - 10:00pm)
+  - [ ] Implement response caching
+  - [ ] Add database indexing
+  - [ ] Optimize query processing
+  - [ ] **COMMIT**: "perf: Optimize backend performance"
+
+#### Agent 2: Polish & Responsiveness
+- [ ] **Mobile Optimization** (7:00pm - 8:30pm)
+  - [ ] Responsive design for all screen sizes
+  - [ ] Touch-friendly interactions
+  - [ ] Mobile-specific navigation
+  - [ ] **COMMIT**: "feat: Add mobile responsiveness"
+
+- [ ] **Error Handling & Feedback** (8:30pm - 10:00pm)
+  - [ ] User-friendly error messages
+  - [ ] Offline mode detection
+  - [ ] Feedback collection form
+  - [ ] Help tooltips and onboarding
+  - [ ] **COMMIT**: "feat: Add error handling and user feedback"
 
 ---
 
@@ -91,113 +212,180 @@
 
 ### Morning Session (8:00am - 12:00pm)
 
-- [ ] **Video Production Setup**
-  - [ ] Write video script highlighting key points:
-    - [ ] Problem demonstration with real examples
-    - [ ] Solution showcase with live demo
-    - [ ] Data visualisation of scale/impact
-    - [ ] Benefits to government and citizens
-  - [ ] Gather screen recordings of working demo
-  - [ ] Collect data visualisation screenshots
+#### Agent 1: Deployment & Documentation
+- [ ] **Deployment** (8:00am - 9:30am)
+  - [ ] Deploy to Encore.dev cloud
+  - [ ] Configure production environment
+  - [ ] Set up monitoring and logging
+  - [ ] Verify all endpoints working
+  - [ ] **COMMIT**: "deploy: Production deployment"
 
-### Afternoon Session (12:00pm - 4:00pm)
+- [ ] **API Documentation** (9:30am - 11:00am)
+  - [ ] Generate OpenAPI specification
+  - [ ] Create API usage examples
+  - [ ] Document authentication flow
+  - [ ] **COMMIT**: "docs: Add API documentation"
 
-- [ ] **Video Production**
+- [ ] **Demo Data Setup** (11:00am - 12:00pm)
+  - [ ] Load sample queries and responses
+  - [ ] Create showcase scenarios
+  - [ ] Prepare performance metrics
+  - [ ] **COMMIT**: "feat: Add demo data"
 
-  - [ ] Record narration and demo footage
-  - [ ] Edit video to 3-minute maximum
-  - [ ] Add captions and professional polish
-  - [ ] Export in required format for upload
-  - [ ] **Critical**: Start upload by 4:00pm for buffer time
+#### Agent 2: Frontend Deployment & Demo
+- [ ] **Frontend Deployment** (8:00am - 9:30am)
+  - [ ] Build production bundle
+  - [ ] Deploy to Vercel/Netlify
+  - [ ] Configure custom domain
+  - [ ] Verify all features working
+  - [ ] **COMMIT**: "deploy: Frontend production deployment"
 
-- [ ] **Final Documentation**
-  - [ ] Complete project page description
-  - [ ] Finalise README with setup instructions
-  - [ ] Document all open data sources used
-  - [ ] Create comprehensive evidence repository
+- [ ] **Demo Scenarios** (9:30am - 11:00am)
+  - [ ] Create guided tour feature
+  - [ ] Add example queries showcase
+  - [ ] Implement success story displays
+  - [ ] **COMMIT**: "feat: Add demo scenarios"
 
-### Final Submission (4:00pm - 5:00pm)
+- [ ] **Visual Polish** (11:00am - 12:00pm)
+  - [ ] Final UI/UX improvements
+  - [ ] Loading animations
+  - [ ] Micro-interactions
+  - [ ] **COMMIT**: "style: Final visual polish"
 
-- [ ] **Submission Checklist**
-  - [ ] Confirm video upload completed successfully
-  - [ ] Verify all required fields completed
-  - [ ] Test demo URL is publicly accessible
-  - [ ] Ensure GitHub repository is public
-  - [ ] Submit before 5:00pm deadline
+### Video Production (12:00pm - 4:00pm) [BOTH AGENTS COLLABORATE]
 
----
+- [ ] **Script Writing** (12:00pm - 12:30pm)
+  - [ ] Problem statement (30 seconds)
+  - [ ] Solution demonstration (90 seconds)
+  - [ ] Impact and benefits (45 seconds)
+  - [ ] Technical innovation (30 seconds)
+  - [ ] Call to action (15 seconds)
 
-## Key Datasets to Source
+- [ ] **Screen Recording** (12:30pm - 2:00pm)
+  - [ ] Record user journey: "Opening a café in Surry Hills"
+  - [ ] Capture conflict resolution example
+  - [ ] Show multi-language support
+  - [ ] Demonstrate mobile responsiveness
 
-- [ ] **TBA**
+- [ ] **Video Editing** (2:00pm - 3:30pm)
+  - [ ] Edit to exactly 3 minutes
+  - [ ] Add captions and annotations
+  - [ ] Include team credits
+  - [ ] Export in MP4 format
 
----
+- [ ] **Upload & Backup** (3:30pm - 4:00pm)
+  - [ ] Upload to YouTube (unlisted)
+  - [ ] Upload to Vimeo as backup
+  - [ ] Save local copy
 
-## Development Priorities
+### Final Submission (4:00pm - 5:00pm) [BOTH AGENTS]
 
-### Must Have (Critical Path)
+- [ ] **Hackerspace Submission**
+  - [ ] Update project page with final description
+  - [ ] Add all data source URLs
+  - [ ] Include demo link
+  - [ ] Add video link
+  - [ ] Link GitHub repository
 
-1. **Working API** - Core functionality
-2. **Demo Interface** - Show the solution in action
-3. **Data Visualisation** - Demonstrate problem scale
-4. **Video Submission** - Required deliverable
+- [ ] **Final Checks**
+  - [ ] Demo site accessible
+  - [ ] API endpoints responding
+  - [ ] Video playing correctly
+  - [ ] GitHub repo public
+  - [ ] All links working
 
-### Should Have (Time Permitting)
-
-1. **Advanced Language Support** - Beyond English
-2. **Performance Optimisation** - Sub-50ms response times
-3. **Comprehensive Testing** - Edge case validation
-4. **Professional Styling** - Enhanced UI/UX
-
-### Nice to Have (Stretch Goals)
-
-1. **Real-time Statistics** - Live data feeds
-2. **Advanced Analytics** - Machine learning insights
-3. **Mobile App** - Native interface
-4. **API Documentation** - Swagger/OpenAPI spec
-
----
-
-## Risk Management
-
-### Technical Risks & Mitigations
-
-- **API Development Delays**: Start with simple implementation, enhance iteratively
-- **Data Source Issues**: Have backup datasets and static examples ready
-- **Deployment Problems**: Test deployment early, have local demo ready
-- **Video Production Time**: Allocate full Sunday morning, start upload early
-
-### Competition Risks & Mitigations
-
-- **Submission Platform Issues**: Complete submission by 4:30pm for buffer
-- **Team Coordination**: Use shared documents and regular check-ins
-- **Scope Creep**: Focus on core deliverables first, add features second
-
----
-
-## Daily Success Criteria
-
-### Friday Success: Foundation Complete
-
-- ✅ Team registered and project page created
-- ✅ Development environment set up
-- ✅ Basic API and Website scaffolded
-- ✅ Data sources identified and documented
-
-### Saturday Success: Core Functionality
-
-- ✅ API handles inputs correctly
-- ✅ Demo site shows clear value proposition
-- ✅ Data visualisations demonstrate problem scale
-- ✅ Solution deployed and publicly accessible
-
-### Sunday Success: Professional Submission
-
-- ✅ 3-minute video showcases solution effectively
-- ✅ All GovHack requirements submitted on time
-- ✅ GitHub repository provides complete evidence
-- ✅ Demo impresses judges with real-world applicability
+- [ ] **Submit by 4:45pm** (15-minute buffer)
 
 ---
 
-_Focus on delivering a working solution that solves a real problem. Polish is secondary to functionality and clear demonstration of value._
+## Key Data Sources
+
+### Priority 1 (Must Have)
+- [ ] ABLIS Business Licence API
+- [ ] Federal Register of Legislation
+- [ ] At least 3 state planning portals
+- [ ] At least 5 council websites
+
+### Priority 2 (Should Have)
+- [ ] ABS demographic data
+- [ ] Spatial planning overlays
+- [ ] Industry classification codes
+- [ ] Government service directories
+
+### Priority 3 (Nice to Have)
+- [ ] Historical regulation changes
+- [ ] Case law databases
+- [ ] International comparison data
+
+---
+
+## Git Workflow
+
+### Branch Strategy
+```
+main
+├── develop
+    ├── feature/backend-services (Agent 1)
+    └── feature/frontend-app (Agent 2)
+```
+
+### Commit Convention
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation
+- `style:` Formatting
+- `refactor:` Code restructuring
+- `test:` Adding tests
+- `perf:` Performance improvement
+- `deploy:` Deployment changes
+
+### Merge Points
+1. Friday 11pm: Initial structures merged to develop
+2. Saturday 12pm: Core features merged to develop
+3. Saturday 6pm: Main features merged to develop
+4. Saturday 10pm: All features merged to develop
+5. Sunday 12pm: Final code merged to main
+6. Sunday 4pm: Competition submission from main
+
+---
+
+## Risk Mitigation
+
+### Technical Risks
+- **API Rate Limits**: Implement caching, use mock data fallback
+- **Deployment Issues**: Test early, maintain local demo
+- **Integration Conflicts**: Regular commits, clear boundaries
+- **Performance Problems**: Profile early, optimize critical paths
+
+### Process Risks
+- **Merge Conflicts**: Small, frequent commits
+- **Communication Gaps**: Use Git commits as communication
+- **Scope Creep**: Focus on MVP features first
+- **Time Management**: Hard stops at milestone times
+
+---
+
+## Success Metrics
+
+### Must Achieve (MVP)
+- ✅ Query processing for 3+ use cases
+- ✅ Multi-jurisdiction detection working
+- ✅ Conflict identification implemented
+- ✅ Live demo accessible
+- ✅ Video submitted on time
+
+### Should Achieve (Good)
+- ✅ 10+ council integrations
+- ✅ Real-time data from 3+ sources
+- ✅ Mobile responsive design
+- ✅ Multi-language support (3+ languages)
+
+### Nice to Have (Excellent)
+- ✅ AI confidence scoring
+- ✅ Predictive recommendations
+- ✅ Export functionality
+- ✅ API documentation site
+
+---
+
+_Remember: Working MVP > Perfect subset. Focus on end-to-end functionality first, polish second._
