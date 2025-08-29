@@ -3,6 +3,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import './style.css'
+import './styles/accessibility.css'
+import './styles/rtl.css'
+import { setupI18n } from './plugins/i18n'
 
 // Simple routing setup
 const router = createRouter({
@@ -32,8 +35,11 @@ const router = createRouter({
 })
 
 const pinia = createPinia()
+const app = createApp(App)
 
-createApp(App)
-  .use(router)
-  .use(pinia)
-  .mount('#app')
+// Setup plugins
+app.use(router)
+app.use(pinia)
+setupI18n(app)
+
+app.mount('#app')

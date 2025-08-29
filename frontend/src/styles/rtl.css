@@ -1,0 +1,554 @@
+/* Right-to-Left (RTL) Layout Support for Arabic */
+
+/* ========================================
+   Global RTL Styles
+   ======================================== */
+
+html[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+.rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+/* ========================================
+   Text and Typography
+   ======================================== */
+
+.rtl {
+  font-family: 'Arial', 'Tahoma', 'Segoe UI', sans-serif;
+}
+
+.rtl h1, .rtl h2, .rtl h3, .rtl h4, .rtl h5, .rtl h6 {
+  text-align: right;
+}
+
+.rtl p, .rtl div, .rtl span {
+  text-align: right;
+}
+
+/* Maintain left alignment for code and numbers */
+.rtl code,
+.rtl pre,
+.rtl .code,
+.rtl .number,
+.rtl input[type="number"],
+.rtl input[type="tel"],
+.rtl input[type="email"],
+.rtl input[type="url"] {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: embed;
+}
+
+/* ========================================
+   Layout and Positioning
+   ======================================== */
+
+/* Flip margins and padding */
+.rtl .ml-1 { margin-right: 0.25rem; margin-left: 0; }
+.rtl .ml-2 { margin-right: 0.5rem; margin-left: 0; }
+.rtl .ml-3 { margin-right: 0.75rem; margin-left: 0; }
+.rtl .ml-4 { margin-right: 1rem; margin-left: 0; }
+.rtl .ml-5 { margin-right: 1.25rem; margin-left: 0; }
+.rtl .ml-6 { margin-right: 1.5rem; margin-left: 0; }
+.rtl .ml-8 { margin-right: 2rem; margin-left: 0; }
+.rtl .ml-auto { margin-right: auto; margin-left: 0; }
+
+.rtl .mr-1 { margin-left: 0.25rem; margin-right: 0; }
+.rtl .mr-2 { margin-left: 0.5rem; margin-right: 0; }
+.rtl .mr-3 { margin-left: 0.75rem; margin-right: 0; }
+.rtl .mr-4 { margin-left: 1rem; margin-right: 0; }
+.rtl .mr-5 { margin-left: 1.25rem; margin-right: 0; }
+.rtl .mr-6 { margin-left: 1.5rem; margin-right: 0; }
+.rtl .mr-8 { margin-left: 2rem; margin-right: 0; }
+.rtl .mr-auto { margin-left: auto; margin-right: 0; }
+
+.rtl .pl-1 { padding-right: 0.25rem; padding-left: 0; }
+.rtl .pl-2 { padding-right: 0.5rem; padding-left: 0; }
+.rtl .pl-3 { padding-right: 0.75rem; padding-left: 0; }
+.rtl .pl-4 { padding-right: 1rem; padding-left: 0; }
+.rtl .pl-5 { padding-right: 1.25rem; padding-left: 0; }
+.rtl .pl-6 { padding-right: 1.5rem; padding-left: 0; }
+.rtl .pl-8 { padding-right: 2rem; padding-left: 0; }
+
+.rtl .pr-1 { padding-left: 0.25rem; padding-right: 0; }
+.rtl .pr-2 { padding-left: 0.5rem; padding-right: 0; }
+.rtl .pr-3 { padding-left: 0.75rem; padding-right: 0; }
+.rtl .pr-4 { padding-left: 1rem; padding-right: 0; }
+.rtl .pr-5 { padding-left: 1.25rem; padding-right: 0; }
+.rtl .pr-6 { padding-left: 1.5rem; padding-right: 0; }
+.rtl .pr-8 { padding-left: 2rem; padding-right: 0; }
+
+/* Flip positioning */
+.rtl .left-0 { right: 0; left: auto; }
+.rtl .left-1 { right: 0.25rem; left: auto; }
+.rtl .left-2 { right: 0.5rem; left: auto; }
+.rtl .left-4 { right: 1rem; left: auto; }
+.rtl .left-6 { right: 1.5rem; left: auto; }
+.rtl .left-8 { right: 2rem; left: auto; }
+
+.rtl .right-0 { left: 0; right: auto; }
+.rtl .right-1 { left: 0.25rem; right: auto; }
+.rtl .right-2 { left: 0.5rem; right: auto; }
+.rtl .right-4 { left: 1rem; right: auto; }
+.rtl .right-6 { left: 1.5rem; right: auto; }
+.rtl .right-8 { left: 2rem; right: auto; }
+
+/* Text alignment overrides */
+.rtl .text-left { text-align: right; }
+.rtl .text-right { text-align: left; }
+
+/* ========================================
+   Flexbox Adjustments
+   ======================================== */
+
+.rtl .flex-row {
+  flex-direction: row-reverse;
+}
+
+.rtl .flex-row-reverse {
+  flex-direction: row;
+}
+
+/* Specific flex adjustments */
+.rtl .justify-start {
+  justify-content: flex-end;
+}
+
+.rtl .justify-end {
+  justify-content: flex-start;
+}
+
+/* Item order adjustments */
+.rtl .order-1 { order: -1; }
+.rtl .order-2 { order: -2; }
+.rtl .order-3 { order: -3; }
+
+/* ========================================
+   Form Elements
+   ======================================== */
+
+.rtl input,
+.rtl textarea,
+.rtl select {
+  text-align: right;
+}
+
+/* Keep specific input types left-aligned */
+.rtl input[type="email"],
+.rtl input[type="url"],
+.rtl input[type="number"],
+.rtl input[type="tel"] {
+  text-align: left;
+  direction: ltr;
+}
+
+/* Form labels */
+.rtl label {
+  text-align: right;
+}
+
+/* Checkbox and radio positioning */
+.rtl input[type="checkbox"],
+.rtl input[type="radio"] {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* Form validation icons */
+.rtl .form-error::before,
+.rtl .form-success::before {
+  order: 1;
+  margin-left: 0.25rem;
+  margin-right: 0;
+}
+
+/* ========================================
+   Navigation and Menus
+   ======================================== */
+
+.rtl nav ul {
+  direction: rtl;
+}
+
+.rtl nav ul li {
+  float: right;
+}
+
+.rtl .breadcrumb {
+  direction: rtl;
+}
+
+.rtl .breadcrumb li::after {
+  content: "/";
+  margin: 0 0.5rem;
+  transform: scaleX(-1);
+}
+
+/* Dropdown menus */
+.rtl .dropdown-menu {
+  right: 0;
+  left: auto;
+  text-align: right;
+}
+
+.rtl .dropdown-item {
+  text-align: right;
+}
+
+/* ========================================
+   Icons and Graphics
+   ======================================== */
+
+/* Flip directional icons */
+.rtl .icon-chevron-left,
+.rtl .icon-arrow-left {
+  transform: scaleX(-1);
+}
+
+.rtl .icon-chevron-right,
+.rtl .icon-arrow-right {
+  transform: scaleX(-1);
+}
+
+/* Flip specific UI elements */
+.rtl .flip-x {
+  transform: scaleX(-1);
+}
+
+/* Don't flip these icons */
+.rtl .icon-search,
+.rtl .icon-close,
+.rtl .icon-check,
+.rtl .icon-warning,
+.rtl .icon-info {
+  transform: none;
+}
+
+/* ========================================
+   Tables
+   ======================================== */
+
+.rtl table {
+  direction: rtl;
+}
+
+.rtl th,
+.rtl td {
+  text-align: right;
+}
+
+.rtl th:first-child {
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.rtl th:last-child {
+  border-radius: 0.375rem 0 0 0.375rem;
+}
+
+/* Sortable column indicators for RTL */
+.rtl th[aria-sort]::after {
+  left: 0.5rem;
+  right: auto;
+}
+
+/* Keep numeric columns left-aligned even in RTL */
+.rtl .numeric {
+  text-align: left;
+  direction: ltr;
+}
+
+/* ========================================
+   Modals and Overlays
+   ======================================== */
+
+.rtl .modal-header .close {
+  margin-left: auto;
+  margin-right: -1rem;
+}
+
+.rtl .modal-footer {
+  justify-content: flex-start;
+}
+
+.rtl .modal-footer .btn:first-child {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+/* ========================================
+   Lists and Content
+   ======================================== */
+
+.rtl ul, .rtl ol {
+  padding-right: 2rem;
+  padding-left: 0;
+}
+
+.rtl li {
+  text-align: right;
+}
+
+/* Definition lists */
+.rtl dt {
+  float: right;
+  clear: right;
+  text-align: right;
+}
+
+.rtl dd {
+  margin-right: 0;
+  margin-left: 1rem;
+}
+
+/* ========================================
+   Cards and Panels
+   ======================================== */
+
+.rtl .card-header {
+  text-align: right;
+}
+
+.rtl .card-body {
+  text-align: right;
+}
+
+.rtl .card-footer {
+  text-align: right;
+}
+
+/* Panel headers with actions */
+.rtl .panel-header {
+  flex-direction: row-reverse;
+}
+
+.rtl .panel-actions {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* ========================================
+   Progress and Loading
+   ======================================== */
+
+.rtl .progress {
+  direction: ltr;
+}
+
+.rtl .progress-bar {
+  direction: ltr;
+}
+
+/* Loading spinner should not be flipped */
+.rtl .loading-spinner {
+  transform: none;
+}
+
+/* ========================================
+   Charts and Visualizations
+   ======================================== */
+
+/* Chart containers maintain LTR for data integrity */
+.rtl .chart-container,
+.rtl canvas {
+  direction: ltr;
+}
+
+/* Chart labels and legends should be RTL */
+.rtl .chart-legend,
+.rtl .chart-tooltip {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Timeline adjustments */
+.rtl .timeline {
+  direction: rtl;
+}
+
+.rtl .timeline-item {
+  flex-direction: row-reverse;
+}
+
+/* ========================================
+   Search and Filters
+   ======================================== */
+
+.rtl .search-container {
+  flex-direction: row-reverse;
+}
+
+.rtl .search-input {
+  border-radius: 0.375rem 0 0 0.375rem;
+}
+
+.rtl .search-button {
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+/* Filter panels */
+.rtl .filter-panel {
+  text-align: right;
+}
+
+.rtl .filter-group {
+  text-align: right;
+}
+
+/* ========================================
+   Responsive Adjustments
+   ======================================== */
+
+/* Mobile menu adjustments for RTL */
+@media (max-width: 768px) {
+  .rtl .mobile-menu {
+    right: 0;
+    left: auto;
+    transform: translateX(100%);
+  }
+  
+  .rtl .mobile-menu.open {
+    transform: translateX(0);
+  }
+  
+  .rtl .mobile-menu-overlay {
+    animation: slideInLeft 0.3s ease-out;
+  }
+}
+
+/* ========================================
+   Animations for RTL
+   ======================================== */
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.rtl .slide-in-left {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.rtl .slide-in-right {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+/* ========================================
+   Utility Classes for RTL
+   ======================================== */
+
+/* Force LTR for specific elements */
+.rtl .force-ltr {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: embed;
+}
+
+/* Force RTL */
+.force-rtl {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* Neutral direction for mixed content */
+.rtl .mixed-content {
+  unicode-bidi: plaintext;
+}
+
+/* ========================================
+   Print Adjustments for RTL
+   ======================================== */
+
+@media print {
+  .rtl * {
+    direction: rtl;
+    text-align: right;
+  }
+  
+  .rtl .print-ltr {
+    direction: ltr;
+    text-align: left;
+  }
+}
+
+/* ========================================
+   Component-Specific RTL Styles
+   ======================================== */
+
+/* Language Selector */
+.rtl .language-selector .language-trigger {
+  flex-direction: row-reverse;
+}
+
+.rtl .language-dropdown {
+  right: 0;
+  left: auto;
+}
+
+.rtl .language-option {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* Skip Links */
+.rtl .skip-link {
+  right: 6px;
+  left: auto;
+}
+
+/* Focus indicators maintain proper direction */
+.rtl .focus-visible {
+  direction: inherit;
+}
+
+/* Tooltips */
+.rtl .tooltip {
+  direction: rtl;
+  text-align: right;
+}
+
+.rtl .tooltip.left {
+  transform: translateX(10px);
+}
+
+.rtl .tooltip.right {
+  transform: translateX(-10px);
+}
+
+/* Scrollbars (Webkit browsers) */
+.rtl ::-webkit-scrollbar {
+  direction: rtl;
+}
+
+/* ========================================
+   Dark Mode RTL Adjustments
+   ======================================== */
+
+.dark .rtl {
+  /* Any dark mode specific RTL adjustments */
+}
+
+/* ========================================
+   High Contrast RTL Adjustments
+   ======================================== */
+
+.high-contrast .rtl {
+  /* Any high contrast specific RTL adjustments */
+}
