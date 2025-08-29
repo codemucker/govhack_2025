@@ -39,6 +39,30 @@ This document captures complexities, nuances, and unexpected findings discovered
 **Time Impact**: 20 minutes to properly document all changes retroactively  
 **Prevention**: Update .context/history.md incrementally during major changes, not as an afterthought  
 
+### Git Flow Branch Setup with Remotes
+**Date**: 2025-08-29T22:15:00Z  
+**Task**: Setting up stage branch and adding Encore Cloud remote for deployment workflow  
+**Issue**: Initial confusion about which branch to create the stage branch from and proper remote configuration  
+**Resolution**: Created stage branch from develop, added Encore remote with correct app ID (`encore://legalease-65o2`)  
+**Time Impact**: 10 minutes to verify proper branch strategy and remote setup  
+**Prevention**: Document branch creation commands in AGENTS.md, include remote verification steps  
+
+### Documentation Synchronization Patterns
+**Date**: 2025-08-29T22:25:00Z  
+**Task**: Keeping .context/todo.md and TodoWrite tool synchronized with actual project status  
+**Issue**: User pointed out .context/todo.md was unchanged despite using TodoWrite tool - they're separate systems  
+**Resolution**: Must update both .context/todo.md file directly AND TodoWrite tool to keep them synchronized  
+**Time Impact**: 15 minutes to identify discrepancy and update both systems  
+**Prevention**: Always update .context/todo.md file when using TodoWrite tool for major workflow changes  
+
+### Competition Timeline Management
+**Date**: 2025-08-29T22:30:00Z  
+**Task**: Tracking progress against GovHack competition timeline and deliverables  
+**Issue**: Original todo.md had outdated directory references (/services vs /api) and didn't reflect current development status  
+**Resolution**: Updated todo.md to show foundation complete, current phase highlighted, next tasks clearly identified  
+**Time Impact**: 20 minutes to thoroughly review and update competition timeline  
+**Prevention**: Update .context/todo.md after each major milestone to keep competition timeline accurate  
+
 ---
 
 <!-- Add new entries below this line -->
