@@ -2,32 +2,25 @@
 
 ## Project Overview
 
-This document defines the technical standards, language preferences, and coding conventions for the Transliterate project. These specifications should be referenced when implementing new features or modifying existing code.
+This document defines the technical standards, language preferences, and coding conventions for the LegalEase project. These specifications should be referenced when implementing new features or modifying existing code.
 
-> **Note**: For infrastructure, deployment, and Encore.dev framework details, see [architecture.md](./architecture.md) > **Locale**: For regional standards and language conventions, see [locale.md](./locale.md)
+> **Note**: For infrastructure, deployment, and Encore.dev framework details, see [architecture.md](./architecture.md)
 
 ## Language & Framework Preferences
 
 ### Primary Languages
 
-1. **TypeScript** - For frontend development and optional backend with Encore
+1. **TypeScript** - For both frontend (Vue.js) and backend (Encore.dev) development
 
    - Strict mode enabled
    - Explicit type annotations preferred
    - Avoid `any` type unless absolutely necessary
 
-2. **Go (Golang)** - For high-performance backend services with Encore
-
-   - Go 1.21+ preferred
-   - Follow effective Go guidelines
-   - Use Go modules for dependency management
-   - Prefer standard library over external dependencies
-
-3. **Shell/Bash** - For automation and system scripts
+2. **Shell/Bash** - For automation and system scripts
    - POSIX-compliant when possible
    - Use shellcheck for validation
 
-> **Backend Language Choice**: Projects must use either Go OR TypeScript with Encore.dev, not both. Choose based on project requirements.
+> **Backend Language**: This project uses TypeScript with Encore.dev for consistency across frontend and backend.
 
 ### Framework Stack
 
@@ -41,21 +34,17 @@ This document defines the technical standards, language preferences, and coding 
 - **Vue Router** for routing
 - **Tailwind CSS** for styling
 - **Headless UI** or **PrimeVue** for component library
-- **Bun** for package management
+- **npm** for package management (v10.0.0+)
 
-##### Static Sites
+##### Package Management
 
-- **Hugo** for static site generation
-- **TypeScript/JavaScript** for interactive elements
-- **esbuild** for bundling TS/JS assets
-- **Tailwind CSS** for styling
-- **AlpineJS** for lightweight reactivity (optional)
+- **npm** (v10.0.0+) as the primary package manager
+- **Workspaces** for monorepo structure
+- **package-lock.json** for dependency locking
 
 #### Backend
 
-- **Encore.dev** framework (choose one):
-  - **Go** for high-performance services
-  - **TypeScript** for rapid development
+- **Encore.dev** framework with **TypeScript**
 - **PostgreSQL** via Encore's database support
 - **Redis** for caching (via Encore infrastructure)
 - **Built-in pub/sub** for event-driven architecture
@@ -66,8 +55,7 @@ This document defines the technical standards, language preferences, and coding 
 - **Vitest** for TypeScript/Vue unit tests (fileName.spec.ts)
 - **API validation tests** (testName.test.ts) for endpoint testing
 - **Playwright** or **Cypress** for E2E testing
-- **Go testing package** for Go unit tests (\*\_test.go)
-- **Testify** for Go test assertions
+- **Jest** or **Vitest** for backend TypeScript tests
 - **Coverage** targets: 80% minimum
 
 ## Coding Conventions
@@ -208,17 +196,21 @@ var userName = "John"
 ├── docs/              # Project documentation
 │   ├── technical.md   # This file (coding standards)
 │   └── architecture.md # Infrastructure and framework
-├── src/               # Source code root
-│   ├── api/           # Encore backend application
-│   │   ├── services/  # Encore services
-│   │   ├── modules/   # Shared business logic
-│   │   └── lib/       # Utilities
-│   └── frontend/      # Vue/Hugo frontend
-│       └── src/       # Frontend source code
-├── scripts/           # Build and automation
+├── api/               # Encore.dev backend services
+│   ├── hello.ts       # Hello world endpoint
+│   ├── triage.ts      # Main triage service
+│   └── site.ts        # SPA serving endpoint
+├── frontend/          # Vue.js frontend application
+│   ├── src/           # Frontend source code
+│   │   ├── views/     # Vue.js pages
+│   │   ├── components/ # Vue.js components
+│   │   └── main.ts    # Application entry point
+│   ├── index.html     # HTML template
+│   └── vite.config.ts # Vite configuration
+├── dist/              # Built frontend (gitignored, served by Encore)
 ├── node_modules/      # Hoisted to root (gitignored)
 ├── package.json       # Root package.json
-└── bun.lockb         # Bun lock file
+└── package-lock.json  # npm lock file
 ```
 
 ### Directory Naming
@@ -561,27 +553,35 @@ Types: feat, fix, docs, style, refactor, test, chore
 
 ### Package Manager
 
-- **Bun** preferred over npm/yarn/pnpm
+- **npm** (v10.0.0+) as the standard package manager
 - Hoist dependencies to root `package.json`
 - Use workspaces for monorepo structure
+- Avoid yarn, pnpm, or bun for consistency
 
 ### Version Pinning
 
 - Pin major versions in production
 - Use exact versions for critical dependencies
-- Regular dependency audits with `bun audit`
+- Regular dependency audits with `npm audit`
 
-### Bun Scripts
+### npm Scripts
 
 ```json
 // package.json
 {
   "scripts": {
-    "dev": "bun run --watch src/frontend/src/main.ts",
-    "build": "bun run build:frontend && encore build",
-    "build:frontend": "bunx vite build",
-    "test": "bun test",
-    "test:unit": "bunx vitest run --coverage"
+    "dev": "npm run dev:backend & npm run dev:frontend",
+    "dev:backend": "encore run",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "encore build",
+    "build:frontend": "npm run build --prefix frontend",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "encore test",
+    "test:frontend": "npm test --prefix frontend",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "eslint api/**/*.ts",
+    "lint:frontend": "npm run lint --prefix frontend"
   }
 }
 ```
@@ -596,23 +596,16 @@ Types: feat, fix, docs, style, refactor, test, chore
 - **Validation**: zod, valibot
 - **Date**: date-fns, dayjs
 - **Testing**: vitest, @vue/test-utils
-- **Build**: vite, esbuild, bun
+- **Build**: vite, esbuild
 
-#### Static Sites (Hugo)
+#### Backend (TypeScript/Encore.dev)
 
-- **Build**: hugo, esbuild
-- **Interactivity**: alpinejs, petite-vue
-- **Styling**: tailwindcss, postcss
-- **Icons**: lucide, heroicons
-
-#### Backend (Go)
-
-- **Web Framework**: gin, fiber, echo
-- **Database**: sqlx, gorm (use sparingly)
-- **Validation**: go-playground/validator
-- **Testing**: testify, gomock
-- **HTTP Client**: resty, standard net/http
-- **Config**: viper, envconfig
+- **Framework**: Encore.dev built-in features
+- **Database**: Encore's PostgreSQL support
+- **Validation**: zod, joi, class-validator
+- **Testing**: vitest, jest
+- **HTTP Client**: axios, ky, native fetch
+- **Config**: Encore's configuration system
 
 ## Migration Guidelines
 

@@ -1,4 +1,4 @@
-# AU Red Tape Navigator - Features
+# LegalEase - Features
 
 ## Core Features
 

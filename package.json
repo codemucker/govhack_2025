@@ -1,13 +1,59 @@
 {
-  "name": "encore-ts-starter",
+  "name": "legalease",
+  "version": "1.0.0",
+  "description": "AI-powered platform for navigating Australian regulatory requirements",
   "private": true,
-  "version": "0.0.1",
-  "description": "Encore Typescript Starter",
-  "license": "MPL-2.0",
   "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev:frontend & npm run dev:backend",
+    "dev:backend": "encore run",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "encore check",
+    "build:frontend": "npm run build --prefix frontend && npm run copy:dist",
+    "copy:dist": "rm -rf dist && cp -r frontend/dist .",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "encore test",
+    "test:frontend": "npm test --prefix frontend",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "eslint api/**/*.ts",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "tsc --noEmit",
+    "typecheck:frontend": "npm run typecheck --prefix frontend",
+    "clean": "rm -rf node_modules frontend/node_modules dist",
+    "clean:dist": "rm -rf dist",
+    "install:all": "npm install && npm install --prefix frontend",
+    "deploy": "npm run build && encore deploy"
+  },
+  "keywords": [
+    "govhack",
+    "regulatory",
+    "compliance",
+    "australia",
+    "typescript",
+    "vue",
+    "encore"
+  ],
+  "author": "Team Democracy Sausage",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codemucker/govhack_2025"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "devDependencies": {
-    "@types/node": "^20.5.7",
-    "typescript": "^5.2.2"
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.0"
   },
   "dependencies": {
     "encore.dev": "^1.46.5"

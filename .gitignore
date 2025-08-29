@@ -1,6 +1,31 @@
+# Encore.dev
 .encore
 encore.gen.go
 encore.gen.cue
 /.encore
-node_modules
 /encore.gen
+
+# Dependencies
+node_modules
+frontend/node_modules
+
+# Build outputs
+dist/
+frontend/dist/
+
+# Development
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# TypeScript
+*.tsbuildinfo

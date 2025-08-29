@@ -3,7 +3,11 @@
     "allow": [
       "Bash(mkdir:*)",
       "WebFetch(domain:www.austlii.edu.au)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

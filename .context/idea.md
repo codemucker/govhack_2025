@@ -1,4 +1,4 @@
-# AU Red Tape Navigator — System Spec & Starter (TypeScript + Vue + Encore.dev)
+# LegalEase — System Spec & Starter (TypeScript + Vue + Encore.dev)
 
 A hand-off blueprint for an AI agent to implement a tool that helps users navigate Australian regulatory requirements across **local councils**, **states/territories**, and the **Commonwealth**. The tool **triages a plain-English request**, determines **jurisdiction & legal area**, **routes** to a specialist reasoning profile, and returns a **step-by-step plan** with **direct links** to the responsible agencies/services.
 
@@ -151,20 +151,18 @@ Each profile has: **system guidelines**, **required facts**, **linking policy**,
 ## Backend (TypeScript/Encore.dev) — Modules & Skeleton
 
 ```
-/au-redtape
-  /services/api/index.ts (API gateway)
-  /services/triage/index.ts (intent/entities, clarifying Qs)
-  /services/jurisdiction/index.ts (geo lookup, council/state mapping)
-  /services/router/index.ts (profile selection)
-  /services/sources/index.ts (providers to registries/APIs)
-  /services/compose/index.ts (plan builder, JSON formatter)
-  /services/conflict/index.ts (comparators, notes)
-  /services/store/index.ts (redis/pg cache, client plans)
+/legalease
+  /api/hello.ts (hello world & health endpoints)
+  /api/triage.ts (main triage service, council search)
+  /api/site.ts (SPA serving for non-API routes)
   /frontend (Vue.js SPA)
     /src/components
     /src/views
-    /src/services
-    /src/store
+    /src/main.ts
+    /src/App.vue
+    /index.html
+    /vite.config.ts
+  /dist (built frontend, served by Encore.dev)
 ```
 
 ### Encore.dev API Endpoints
@@ -235,7 +233,7 @@ return compose.toJSON(plan, conflicts, citations);
 
 ```vue
 <template>
-  <div class="red-tape-navigator">
+  <div class="legalease-navigator">
     <div class="search-form">
       <input 
         v-model="query" 
