@@ -13,6 +13,7 @@ import { PersistentDatabase } from './persistent-database.js';
 import { DocumentSeeder } from './document-seeder.js';
 import { BackgroundIntelligenceService, IntelligentFailureHandler } from './background-intelligence.js';
 import { RealtimeDocumentIngester } from './realtime-document-ingester.js';
+import { PermitSiteIngester } from './permit-site-ingester.js';
 
 // Load environment variables
 dotenv.config();
@@ -364,6 +365,183 @@ class AustLIIDiscovery {
     if (totalScore >= 40) return 'relevant';
     if (totalScore >= 20) return 'general';
     return 'tangential';
+  }
+
+  // Generate deep links to specific legal provisions and permits
+  generateDeepLinks(aiResponse, documents, jurisdiction, legal_areas, keywords) {
+    const deepLinks = [];
+    const response = aiResponse.toLowerCase();
+    
+    // Extract mentioned sections, chapters, and provisions
+    const sectionMatches = aiResponse.match(/section\s+(\d+[a-z]?)/gi) || [];
+    const chapterMatches = aiResponse.match(/chapter\s+(\d+)/gi) || [];
+    const partMatches = aiResponse.match(/part\s+(\d+[a-z]?)/gi) || [];
+    
+    // Generate section-specific deep links for each document
+    for (const doc of documents) {
+      const baseUrl = doc.url;
+      
+      // Add specific section links
+      for (const sectionMatch of sectionMatches) {
+        const sectionNum = sectionMatch.match(/\d+[a-z]?/i)[0];
+        deepLinks.push({
+          type: 'legal_provision',
+          title: `Section ${sectionNum}`,
+          description: `Direct link to Section ${sectionNum} of the Act`,
+          url: `${baseUrl}s${sectionNum}.html`,
+          document_title: this.getDocumentTitle(doc.url),
+          jurisdiction: jurisdiction.toUpperCase(),
+          provision_type: 'section'
+        });
+      }
+      
+      // Add chapter links
+      for (const chapterMatch of chapterMatches) {
+        const chapterNum = chapterMatch.match(/\d+/)[0];
+        deepLinks.push({
+          type: 'legal_provision', 
+          title: `Chapter ${chapterNum}`,
+          description: `Direct link to Chapter ${chapterNum} provisions`,
+          url: `${baseUrl}ch${chapterNum}.html`,
+          document_title: this.getDocumentTitle(doc.url),
+          jurisdiction: jurisdiction.toUpperCase(),
+          provision_type: 'chapter'
+        });
+      }
+    }
+    
+    // Add permit and license application links based on content
+    const permitLinks = this.generatePermitLinks(aiResponse, jurisdiction, legal_areas);
+    deepLinks.push(...permitLinks);
+    
+    // Add regulatory authority links
+    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas);
+    deepLinks.push(...authorityLinks);
+    
+    return deepLinks;
+  }
+  
+  // Generate permit and license application links
+  generatePermitLinks(aiResponse, jurisdiction, legal_areas) {
+    const permitLinks = [];
+    const response = aiResponse.toLowerCase();
+    
+    // Food business licenses
+    if (response.includes('food business licence') || response.includes('food licence')) {
+      const jurisdictionData = this.getJurisdictionData(jurisdiction);
+      permitLinks.push({
+        type: 'permit_application',
+        title: 'Food Business Licence Application',
+        description: 'Apply for a food business licence online',
+        url: jurisdictionData.foodLicenceUrl,
+        authority: jurisdictionData.foodAuthority,
+        jurisdiction: jurisdiction.toUpperCase(),
+        application_type: 'food_business_licence'
+      });
+    }
+    
+    // Development approvals
+    if (response.includes('development approval') || response.includes('planning permit')) {
+      const jurisdictionData = this.getJurisdictionData(jurisdiction);
+      permitLinks.push({
+        type: 'permit_application',
+        title: 'Development Application',
+        description: 'Submit development application to local council',
+        url: jurisdictionData.developmentUrl,
+        authority: 'Local Council',
+        jurisdiction: jurisdiction.toUpperCase(),
+        application_type: 'development_approval'
+      });
+    }
+    
+    // Business registration
+    if (response.includes('business registration') || response.includes('abn')) {
+      permitLinks.push({
+        type: 'permit_application',
+        title: 'Business Registration',
+        description: 'Register your business and get an ABN',
+        url: 'https://www.business.gov.au/registrations/register-for-an-australian-business-number-abn',
+        authority: 'Australian Business Registry Services',
+        jurisdiction: 'Commonwealth',
+        application_type: 'business_registration'
+      });
+    }
+    
+    return permitLinks;
+  }
+  
+  // Generate regulatory authority contact links
+  generateAuthorityLinks(jurisdiction, legal_areas) {
+    const authorityLinks = [];
+    const jurisdictionData = this.getJurisdictionData(jurisdiction);
+    
+    // Food safety authorities
+    if (legal_areas.some(area => area.includes('food'))) {
+      authorityLinks.push({
+        type: 'regulatory_authority',
+        title: jurisdictionData.foodAuthority,
+        description: 'Contact the food safety regulator',
+        url: jurisdictionData.foodAuthorityUrl,
+        authority: jurisdictionData.foodAuthority,
+        jurisdiction: jurisdiction.toUpperCase(),
+        contact_type: 'food_safety'
+      });
+    }
+    
+    // Local council
+    authorityLinks.push({
+      type: 'regulatory_authority',
+      title: 'Local Council Services',
+      description: 'Contact your local council for permits and approvals',
+      url: jurisdictionData.localCouncilUrl,
+      authority: 'Local Council',
+      jurisdiction: jurisdiction.toUpperCase(),
+      contact_type: 'local_government'
+    });
+    
+    return authorityLinks;
+  }
+  
+  // Get jurisdiction-specific data for links
+  getJurisdictionData(jurisdiction) {
+    const jurisdictionMap = {
+      'qld': {
+        foodAuthority: 'Queensland Health',
+        foodAuthorityUrl: 'https://www.health.qld.gov.au/public-health/industry-environment/food-safety',
+        foodLicenceUrl: 'https://www.business.qld.gov.au/industries/hospitality-tourism-sport/hospitality-gaming/food-business/starting',
+        developmentUrl: 'https://www.business.qld.gov.au/industries/building-construction-property/building-construction/approvals-permits',
+        localCouncilUrl: 'https://www.qld.gov.au/about/how-government-works/local-government'
+      },
+      'nsw': {
+        foodAuthority: 'NSW Food Authority',
+        foodAuthorityUrl: 'https://www.foodauthority.nsw.gov.au/',
+        foodLicenceUrl: 'https://www.foodauthority.nsw.gov.au/retail/food-business-licensing',
+        developmentUrl: 'https://www.planning.nsw.gov.au/development-applications',
+        localCouncilUrl: 'https://www.olg.nsw.gov.au/'
+      },
+      'vic': {
+        foodAuthority: 'Department of Health Victoria',
+        foodAuthorityUrl: 'https://www.health.vic.gov.au/food-safety',
+        foodLicenceUrl: 'https://www.business.vic.gov.au/licensing-and-registration/food-business-registration',
+        developmentUrl: 'https://www.planning.vic.gov.au/permits-and-applications',
+        localCouncilUrl: 'https://www.localgovernment.vic.gov.au/'
+      }
+    };
+    
+    return jurisdictionMap[jurisdiction] || jurisdictionMap['qld']; // Default to QLD
+  }
+  
+  // Extract document title from URL
+  getDocumentTitle(url) {
+    const documentMap = {
+      'fa200657': 'Food Act 2006 (QLD)',
+      'la2007107': 'Liquor Act 2007 (NSW)', 
+      'ca2001172': 'Corporations Act 2001 (Cth)',
+      'fa200357': 'Food Act 2003 (NSW)'
+    };
+    
+    const docId = url.match(/\/([^/]+)\/$/)?.[1];
+    return documentMap[docId] || 'Legal Document';
   }
 
   // NEW: Generate government data portal URLs for building codes and planning
@@ -1614,6 +1792,7 @@ const activeQueries = new Map();
 // Initialize services
 const documentFetcher = new StandaloneDocumentFetcher();
 const openaiClient = new StandaloneOpenAIClient();
+const permitIngester = new PermitSiteIngester(db, documentFetcher);
 
 // Background Intelligence Services (initialized after startup)
 let backgroundIntelligence = null;
@@ -1772,6 +1951,96 @@ app.post('/api/trigger-intelligence', async (req, res) => {
   }
 });
 
+// Permit site ingestion endpoints
+app.post('/api/ingest-permits', async (req, res) => {
+  try {
+    const { jurisdiction, legal_areas = [] } = req.body;
+    
+    if (!jurisdiction) {
+      return res.status(400).json({
+        success: false,
+        error: 'Jurisdiction is required (qld, nsw, vic, wa, sa, tas, nt, act, cth)'
+      });
+    }
+
+    console.log(`🏛️ Starting permit site ingestion for ${jurisdiction.toUpperCase()}`);
+    
+    const sites = await permitIngester.ingestPermitSitesForJurisdiction(
+      jurisdiction.toLowerCase(), 
+      legal_areas
+    );
+    
+    res.json({
+      success: true,
+      jurisdiction: jurisdiction.toLowerCase(),
+      sites_ingested: sites.length,
+      sites: sites.map(s => ({
+        url: s.url,
+        permit_types: s.permit_types || [],
+        application_links: s.application_links || []
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Permit ingestion failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/preseed-permits', async (req, res) => {
+  try {
+    const { all_jurisdictions = false, jurisdiction = null } = req.body;
+    
+    let result;
+    
+    if (all_jurisdictions) {
+      console.log('🌱 Starting full preseed of all jurisdictions...');
+      const totalSites = await permitIngester.preseedDatabase();
+      
+      result = {
+        success: true,
+        operation: 'full_preseed',
+        sites_ingested: totalSites,
+        jurisdictions: ['qld', 'nsw', 'vic', 'wa', 'sa', 'tas', 'nt', 'act', 'cth']
+      };
+    } else if (jurisdiction) {
+      console.log(`🏛️ Starting preseed for ${jurisdiction.toUpperCase()}...`);
+      const sites = await permitIngester.ingestPermitSitesForJurisdiction(jurisdiction.toLowerCase(), []);
+      
+      result = {
+        success: true,
+        operation: 'single_jurisdiction_preseed',
+        jurisdiction: jurisdiction.toLowerCase(),
+        sites_ingested: sites.length
+      };
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either all_jurisdictions: true or jurisdiction must be specified'
+      });
+    }
+    
+    // Get updated stats
+    const stats = await db.getStats();
+    result.database_stats = {
+      total_documents: stats.documents,
+      cache_size_kb: stats.cache.totalSize
+    };
+    
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Preseed failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Ask question endpoint with real-time event tracking
 app.post('/api/legal/ask', async (req, res) => {
   const startTime = Date.now();
@@ -1893,6 +2162,19 @@ app.post('/api/legal/ask', async (req, res) => {
         jurisdiction_match: docScore ? docScore.jurisdiction_match : 'other'
       };
     });
+    
+    // Generate deep links to specific provisions and permits
+    const firstDoc = relevantDocs.length > 0 ? relevantDocs[0] : null;
+    const extractedJurisdiction = firstDoc ? documentFetcher.discovery.extractJurisdictionFromUrl(firstDoc.url) : 'qld';
+    
+    const deepLinks = documentFetcher.discovery ? 
+      documentFetcher.discovery.generateDeepLinks(
+        aiResponse.answer, 
+        relevantDocs.slice(0, 3),
+        extractedJurisdiction,
+        ['food safety', 'business regulations'], // Fallback legal areas
+        ['licence', 'permit', 'registration'] // Fallback keywords
+      ) : [];
 
     // Log query to database
     await db.saveQuery({
@@ -1922,6 +2204,7 @@ app.post('/api/legal/ask', async (req, res) => {
       success: true,
       answer: aiResponse.answer,
       sources,
+      deep_links: deepLinks,
       confidence: 0.9,
       queryId,
       executionTime: Date.now() - startTime,
