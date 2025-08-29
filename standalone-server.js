@@ -551,7 +551,7 @@ class StandaloneDocumentFetcher {
     if (cached) {
       return {
         content: cached.content,
-        tags: cached.tags.split(',').filter(t => t.length > 0),
+        tags: Array.isArray(cached.tags) ? cached.tags : (cached.tags ? cached.tags.split(',').filter(t => t.length > 0) : []),
         url: cached.url,
         synthetic: cached.synthetic
       };

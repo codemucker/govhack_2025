@@ -311,11 +311,11 @@ export class DocumentSeeder {
       // Create document object for database
       const document = {
         url: docConfig.url,
-        content: await this.generateSyntheticContent(docConfig),
+        content: await this.fetchRealContent(docConfig.url),
         tags: docConfig.tags,
         jurisdiction: docConfig.jurisdiction,
         document_type: docConfig.document_type,
-        synthetic: true // Mark as synthetic for now, can be replaced with real content later
+        synthetic: false // Mark as real content
       };
       
       // Save to database (automatically caches to disk)
@@ -330,36 +330,26 @@ export class DocumentSeeder {
     }
   }
 
-  // Generate synthetic content for documents (until real content is fetched)
-  async generateSyntheticContent(docConfig) {
-    const content = `
-# ${docConfig.title}
-
-**Jurisdiction:** ${docConfig.jurisdiction}
-**Document Type:** ${docConfig.document_type}
-**Priority:** ${docConfig.priority}/10
-
-## Overview
-${docConfig.description}
-
-## Key Areas Covered
-${docConfig.tags.map(tag => `- ${tag.charAt(0).toUpperCase() + tag.slice(1)}`).join('\n')}
-
-## Important Sections
-This document covers regulations related to:
-${docConfig.tags.map(tag => `- ${tag} requirements and procedures`).join('\n')}
-
-## Compliance Requirements
-Individuals and businesses must comply with the provisions outlined in this Act/Regulation.
-
-## Contact Information
-For specific guidance, contact the relevant authority in ${docConfig.jurisdiction}.
-
----
-*Note: This is synthetic content generated for seeding purposes. Real document content will be fetched when specifically requested.*
-    `.trim();
-    
-    return content;
+  // Fetch real content from AustLII
+  async fetchRealContent(url) {
+    try {
+      console.log(`Fetching real content from: ${url}`);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}`);
+      }
+      const html = await response.text();
+      // Basic HTML to text extraction
+      let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+      text = text.replace(/<[^>]+>/g, ' ');
+      text = text.replace(/&nbsp;/g, ' ');
+      text = text.replace(/\s+/g, ' ').trim();
+      return text;
+    } catch (error) {
+      console.error(`Error fetching real content from ${url}:`, error);
+      return `Error fetching content: ${error.message}`;
+    }
   }
 
   // Quick seed with just the highest priority documents
