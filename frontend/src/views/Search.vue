@@ -42,36 +42,42 @@
         @submit="performSearch" 
       />
 
-      <!-- Progress Indicator -->
-      <div v-if="loading && progressSteps.length > 0" class="progress-indicator">
-        <div class="progress-header">
-          <h3>🔍 Processing Your Query</h3>
-          <p class="current-step">{{ currentStep || 'Starting analysis...' }}</p>
+      <!-- Non-intrusive Clarification Suggestions -->
+      <div v-if="clarificationSuggestions && clarificationSuggestions.needs_clarification" class="suggestion-card">
+        <div class="suggestion-header">
+          <span class="suggestion-icon">💡</span>
+          <span class="suggestion-title">Get more specific results</span>
         </div>
-        
-        <div class="progress-steps">
-          <div 
-            v-for="(step, index) in progressSteps" 
-            :key="step.step"
-            class="progress-step"
-            :class="{ completed: step.completed, active: !step.completed && index === 0 }"
-          >
-            <div class="step-indicator">
-              <div class="step-number" v-if="!step.completed">{{ index + 1 }}</div>
-              <div class="step-checkmark" v-else>✓</div>
-            </div>
-            <div class="step-content">
-              <div class="step-message">{{ step.message }}</div>
-              <div v-if="step.timestamp" class="step-time">
-                {{ new Date(step.timestamp).toLocaleTimeString() }}
-              </div>
+        <p class="suggestion-reason">{{ clarificationSuggestions.reason }}</p>
+        <div v-if="clarificationSuggestions.questions && clarificationSuggestions.questions.length > 0" class="suggestion-questions">
+          <div class="suggestion-question-list">
+            <span v-for="(question, index) in clarificationSuggestions.questions" 
+                  :key="question" 
+                  class="suggestion-question"
+                  @click="addToQuery(question)">
+              {{ question }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compact Progress Indicator -->
+      <div v-if="loading" class="compact-progress">
+        <div class="progress-content">
+          <div class="progress-spinner">🔍</div>
+          <div class="progress-text">
+            <span class="progress-step">{{ currentStep || 'Processing...' }}</span>
+            <div class="progress-stats">
+              {{ progressSteps.filter(s => s.completed).length }}/{{ progressSteps.length }}
+              <span v-if="canCancelQuery" class="cancel-option" @click="cancelAndResubmit">
+                Cancel & resubmit
+              </span>
             </div>
           </div>
         </div>
-        
-        <div class="progress-bar">
+        <div class="compact-progress-bar">
           <div 
-            class="progress-fill" 
+            class="compact-progress-fill" 
             :style="{ width: `${(progressSteps.filter(s => s.completed).length / progressSteps.length) * 100}%` }"
           ></div>
         </div>
@@ -103,59 +109,7 @@
       />
     </div>
 
-    <!-- Clarification Dialog -->
-    <div v-if="showClarification" class="clarification-overlay">
-      <div class="clarification-dialog">
-        <div class="clarification-header">
-          <h3>Need More Details</h3>
-          <p class="clarification-reason">{{ clarificationReason }}</p>
-        </div>
-        
-        <div class="clarification-content">
-          <div v-if="clarificationQuestions.length > 0" class="clarification-questions">
-            <h4>Please provide more information:</h4>
-            <ul>
-              <li v-for="question in clarificationQuestions" :key="question">
-                {{ question }}
-              </li>
-            </ul>
-          </div>
-          
-          <div v-if="suggestedDetails.length > 0" class="suggested-details">
-            <h4>Helpful details to include:</h4>
-            <div class="detail-tags">
-              <span v-for="detail in suggestedDetails" :key="detail" class="detail-tag">
-                {{ detail }}
-              </span>
-            </div>
-          </div>
-          
-          <div class="clarification-input">
-            <label for="updated-query">Updated question with more details:</label>
-            <textarea 
-              id="updated-query"
-              v-model="formData.query"
-              rows="4"
-              placeholder="Please provide the additional details mentioned above..."
-              class="clarification-textarea"
-            ></textarea>
-          </div>
-        </div>
-        
-        <div class="clarification-actions">
-          <button 
-            @click="handleClarificationResponse(formData.query)" 
-            class="btn btn-primary"
-            :disabled="!formData.query.trim()"
-          >
-            Search with Details
-          </button>
-          <button @click="dismissClarification" class="btn btn-secondary">
-            Continue Anyway
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- Old clarification dialog removed - now using inline suggestions -->
 
     <!-- Export Dialog -->
     <ExportDialog
@@ -213,6 +167,12 @@ type TriageResponse = {
       step: number
       desc: string
       link?: string
+      contact_phone?: string
+      contact_email?: string
+      contact_type?: string
+      contact_chatbot?: string
+      contact_website?: string
+      contact_hours?: string
     }>
     notes: string[]
   }>
@@ -245,11 +205,17 @@ const progressSteps = ref<Array<{step: string, message: string, completed: boole
 const currentStep = ref('')
 const queryId = ref('')
 
-// Clarification state
-const showClarification = ref(false)
-const clarificationQuestions = ref<string[]>([])
-const clarificationReason = ref('')
-const suggestedDetails = ref<string[]>([])
+// Real-time suggestion state (replaces blocking clarification)
+const clarificationSuggestions = ref<{
+  needs_clarification: boolean
+  questions: string[]
+  reason: string
+  suggested_details: string[]
+} | null>(null)
+
+// Query management
+const currentQueryId = ref('')
+const canCancelQuery = ref(false)
 
 // Location detection state
 const autoDetectedLocation = ref('')
@@ -369,7 +335,13 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     actions: req.actions?.map(action => ({
       step: action.step,
       desc: action.desc || action.text || '',
-      link: action.link
+      link: action.link,
+      contact_phone: action.contact_phone,
+      contact_email: action.contact_email,
+      contact_type: action.contact_type,
+      contact_chatbot: action.contact_chatbot,
+      contact_website: action.contact_website,
+      contact_hours: action.contact_hours
     })) || [],
     notes: req.notes || []
   }))
@@ -577,21 +549,44 @@ const detectUserLocale = () => {
 }
 
 /**
- * Handle clarification response - user provides more details
+ * Add question suggestion to current query
  */
-const handleClarificationResponse = (updatedQuery: string) => {
-  formData.value.query = updatedQuery
-  showClarification.value = false
-  performSearch(formData.value)
+const addToQuery = (suggestion: string) => {
+  if (formData.value.query.includes(suggestion)) return
+  
+  // Add the suggestion as additional context
+  const currentQuery = formData.value.query.trim()
+  formData.value.query = `${currentQuery} ${suggestion}`.trim()
 }
 
 /**
- * Dismiss clarification dialog and proceed with original query
+ * Cancel current query and submit improved version
  */
-const dismissClarification = () => {
-  showClarification.value = false
-  // Force search without clarification check by setting a flag
-  performSearchWithoutClarification(formData.value)
+const cancelAndResubmit = async () => {
+  if (!currentQueryId.value) return
+  
+  try {
+    // Cancel the current query
+    await apiClient.cancelQuery(currentQueryId.value)
+    
+    // Clear current state
+    clarificationSuggestions.value = null
+    canCancelQuery.value = false
+    
+    // Submit the improved query
+    performSearch(formData.value)
+  } catch (error) {
+    console.error('Failed to cancel query:', error)
+    // If cancellation fails, just proceed with new query anyway
+    performSearch(formData.value)
+  }
+}
+
+/**
+ * Dismiss suggestions and continue with current processing
+ */
+const dismissSuggestions = () => {
+  clarificationSuggestions.value = null
 }
 
 /**
@@ -604,7 +599,7 @@ const performSearch = async (data: { query: string; address: string }) => {
   loading.value = true
   error.value = ''
   result.value = null
-  showClarification.value = false
+  clarificationSuggestions.value = null
   
   // Initialize progress tracking
   initializeProgress()
@@ -620,29 +615,39 @@ const performSearch = async (data: { query: string; address: string }) => {
         location: finalAddress || undefined
       },
       onEvent: (event) => {
-        queryId.value = event.queryId
+        currentQueryId.value = event.queryId
+        canCancelQuery.value = true
         handleProgressEvent(event)
+        
+        // Handle real-time clarification suggestions
+        if (event.type === 'clarification_suggestions_ready' && event.data?.suggestions) {
+          clarificationSuggestions.value = {
+            needs_clarification: true,
+            questions: event.data.suggestions,
+            reason: event.data.reason || '',
+            suggested_details: event.data.suggested_details || []
+          }
+        }
       }
     })
     
     if (response.success) {
-      // Check if clarification is needed
-      if (response.needs_clarification) {
-        showClarification.value = true
-        clarificationQuestions.value = response.clarification_questions || []
-        clarificationReason.value = response.reason || ''
-        suggestedDetails.value = response.suggested_details || []
-      } else if (response.answer) {
-        // Convert the new API response format to the old format for compatibility
-        result.value = convertToTriageResponse(response, data.query, finalAddress)
+      // Convert the new API response format to the old format for compatibility
+      result.value = convertToTriageResponse(response, data.query, finalAddress)
+      
+      // Show suggestions if they weren't already shown during processing
+      if (response.clarification_suggestions?.needs_clarification && !clarificationSuggestions.value) {
+        clarificationSuggestions.value = response.clarification_suggestions
       }
     } else {
       error.value = response.error || 'Failed to get legal guidance'
     }
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'An unknown error occurred'
+  } catch (err: any) {
+    console.error('Search error:', err)
+    error.value = err.message || 'Failed to connect to the server'
   } finally {
     loading.value = false
+    canCancelQuery.value = false
   }
 }
 
@@ -1333,6 +1338,155 @@ onMounted(() => {
   
   .step-message {
     font-size: 0.85rem;
+  }
+}
+
+/* Compact Progress Styles */
+.compact-progress {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.progress-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.progress-spinner {
+  font-size: 1.25rem;
+  animation: pulse 2s infinite;
+}
+
+.progress-text {
+  flex: 1;
+}
+
+.progress-step {
+  display: block;
+  font-weight: 500;
+  color: #1e293b;
+  font-size: 0.95rem;
+}
+
+.progress-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.cancel-option {
+  color: #dc2626;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.cancel-option:hover {
+  color: #991b1b;
+}
+
+.compact-progress-bar {
+  width: 100%;
+  height: 0.25rem;
+  background: #e2e8f0;
+  border-radius: 0.125rem;
+  overflow: hidden;
+}
+
+.compact-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #059669, #10b981);
+  border-radius: 0.125rem;
+  transition: width 0.3s ease;
+}
+
+/* Suggestion Card Styles */
+.suggestion-card {
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.suggestion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.suggestion-icon {
+  font-size: 1.125rem;
+}
+
+.suggestion-title {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.suggestion-reason {
+  color: #78350f;
+  font-size: 0.875rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.suggestion-question-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.suggestion-question {
+  background: white;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-question:hover {
+  background: #fef3c7;
+  transform: translateY(-1px);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (max-width: 640px) {
+  .compact-progress {
+    padding: 0.75rem;
+  }
+  
+  .progress-content {
+    gap: 0.75rem;
+  }
+  
+  .progress-stats {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .suggestion-card {
+    padding: 0.75rem;
+  }
+  
+  .suggestion-question-list {
+    gap: 0.375rem;
   }
 }
 </style>

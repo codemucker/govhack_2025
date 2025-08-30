@@ -20,38 +20,56 @@ import { locationMapper } from './location-mapper.js';
 // Load environment variables
 dotenv.config();
 
+// Add global error handlers to prevent server crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log the error
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Log but don't exit - let server continue running
+});
+
 // Robust JSON Parser - handles malformed LLM responses
-class RobustJSONParser {
-  static parse(content, fallback = {}) {
+class RobustXMLParser {
+  static async parse(content, fallback = {}, options = {}) {
     if (!content || typeof content !== 'string') {
       return fallback;
     }
 
-    // Multi-stage cleaning strategies
+    const { retryCallback, expectedFormat, maxRetries = 0 } = options;
+
+    // Cleaning strategies in order of preference
     const cleaningStrategies = [
-      // 1. Remove markdown code blocks
-      s => s.replace(/```json\n?/g, '').replace(/\n?```/g, '').trim(),
+      // 1. Direct parsing
+      s => s,
       
-      // 2. Fix smart quotes and unicode issues
-      s => s.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'"),
+      // 2. Remove markdown code block markers
+      s => s.replace(/^```(?:xml)?\n?/, '').replace(/\n?```$/, ''),
       
-      // 3. Remove trailing commas
-      s => s.replace(/,(\s*[}\]])/g, '$1'),
-      
-      // 4. Fix common JSON issues
-      s => s.replace(/([{,]\s*)(\w+):/g, '$1"$2":'), // Add quotes to unquoted keys
-      
-      // 5. Extract first JSON object if embedded in text
+      // 3. Extract XML from text blocks
       s => {
-        const match = s.match(/\{[\s\S]*?\}/);
+        const xmlMatch = s.match(/```xml\s*\n([\s\S]*?)\n```/) || s.match(/```\s*\n([\s\S]*?)\n```/);
+        return xmlMatch ? xmlMatch[1] : s;
+      },
+      
+      // 4. Extract XML content from between tags
+      s => {
+        const match = s.match(/<analysis>[\s\S]*?<\/analysis>/i) || 
+                      s.match(/<response>[\s\S]*?<\/response>/i) ||
+                      s.match(/<result>[\s\S]*?<\/result>/i);
         return match ? match[0] : s;
       },
       
-      // 6. Try to extract JSON from between markers
+      // 5. Remove any non-printable characters and control characters
+      s => s.replace(/[\x00-\x1F\x7F-\x9F]/g, ''),
+      
+      // 6. Fix common XML issues (ensure proper closing tags)
       s => {
-        const jsonStart = s.indexOf('{');
-        const jsonEnd = s.lastIndexOf('}');
-        return jsonStart >= 0 && jsonEnd > jsonStart ? s.slice(jsonStart, jsonEnd + 1) : s;
+        // Basic XML structure repair
+        const lines = s.split('\n').map(line => line.trim()).filter(line => line);
+        return lines.join('\n');
       }
     ];
 
@@ -59,51 +77,186 @@ class RobustJSONParser {
     for (const strategy of cleaningStrategies) {
       try {
         const cleaned = strategy(content);
-        const parsed = JSON.parse(cleaned);
-        return parsed;
+        const parsed = this.parseXMLContent(cleaned);
+        if (Object.keys(parsed).length > 0) {
+          return parsed;
+        }
       } catch (e) {
+        console.warn('XML parsing strategy failed with:', e.message);
         continue; // Try next strategy
       }
     }
 
     // Fallback: Extract key-value pairs with regex
     try {
-      return this.extractKeyValuePairs(content, fallback);
+      const result = this.extractKeyValuePairs(content, fallback);
+      if (Object.keys(result).length > Object.keys(fallback).length) {
+        return result;
+      }
     } catch (e) {
-      console.warn('All JSON parsing strategies failed, using fallback:', e.message);
-      return fallback;
+      console.warn('Regex extraction failed:', e.message);
     }
+
+    // If all parsing failed and we have a retry callback, try again
+    if (retryCallback && maxRetries > 0) {
+      console.warn('XML parsing completely failed, attempting retry with clearer format instructions...');
+      try {
+        const retryContent = await retryCallback(expectedFormat);
+        if (retryContent && retryContent !== content) {
+          return await this.parse(retryContent, fallback, { 
+            ...options, 
+            maxRetries: maxRetries - 1 
+          });
+        }
+      } catch (retryError) {
+        console.warn('Retry attempt failed:', retryError.message);
+        // Don't throw, just return fallback
+      }
+    }
+
+    console.warn('All XML parsing strategies failed, using fallback');
+    return fallback;
+  }
+
+  // Parse XML content into object
+  static parseXMLContent(content) {
+    const result = {};
+    
+    // Extract jurisdiction
+    const jurisdictionMatch = content.match(/<jurisdiction>(.*?)<\/jurisdiction>/i);
+    if (jurisdictionMatch) {
+      result.jurisdiction = jurisdictionMatch[1].trim();
+    }
+    
+    // Extract legal_areas
+    const legalAreasMatch = content.match(/<legal_areas>([\s\S]*?)<\/legal_areas>/i);
+    if (legalAreasMatch) {
+      const areas = legalAreasMatch[1].match(/<area>(.*?)<\/area>/gi);
+      result.legal_areas = areas ? areas.map(area => area.replace(/<\/?area>/gi, '').trim()) : [];
+    }
+    
+    // Extract keywords
+    const keywordsMatch = content.match(/<keywords>([\s\S]*?)<\/keywords>/i);
+    if (keywordsMatch) {
+      const keywords = keywordsMatch[1].match(/<keyword>(.*?)<\/keyword>/gi);
+      result.keywords = keywords ? keywords.map(kw => kw.replace(/<\/?keyword>/gi, '').trim()) : [];
+    }
+    
+    // Extract document_types
+    const docTypesMatch = content.match(/<document_types>([\s\S]*?)<\/document_types>/i);
+    if (docTypesMatch) {
+      const types = docTypesMatch[1].match(/<type>(.*?)<\/type>/gi);
+      result.document_types = types ? types.map(type => type.replace(/<\/?type>/gi, '').trim()) : [];
+    }
+    
+    // Extract alternative_terms
+    const altTermsMatch = content.match(/<alternative_terms>([\s\S]*?)<\/alternative_terms>/i);
+    if (altTermsMatch) {
+      const terms = altTermsMatch[1].match(/<term>(.*?)<\/term>/gi);
+      result.alternative_terms = terms ? terms.map(term => term.replace(/<\/?term>/gi, '').trim()) : [];
+    }
+    
+    // Extract boolean values
+    const relevantMatch = content.match(/<relevant>(true|false)<\/relevant>/i);
+    if (relevantMatch) {
+      result.relevant = relevantMatch[1].toLowerCase() === 'true';
+    }
+    
+    const clarificationMatch = content.match(/<needs_clarification>(true|false)<\/needs_clarification>/i);
+    if (clarificationMatch) {
+      result.needs_clarification = clarificationMatch[1].toLowerCase() === 'true';
+    }
+    
+    // Extract numeric values
+    const confidenceMatch = content.match(/<confidence>([\d.]+)<\/confidence>/i);
+    if (confidenceMatch) {
+      result.confidence = parseFloat(confidenceMatch[1]);
+    }
+    
+    // Extract location-related fields
+    const locationFoundMatch = content.match(/<location_found>(true|false)<\/location_found>/i);
+    if (locationFoundMatch) {
+      result.location_found = locationFoundMatch[1].toLowerCase() === 'true';
+    }
+    
+    const cityMatch = content.match(/<city>(.*?)<\/city>/i);
+    if (cityMatch) {
+      result.city = cityMatch[1].trim();
+    }
+    
+    const stateMatch = content.match(/<state>(.*?)<\/state>/i);
+    if (stateMatch) {
+      result.state = stateMatch[1].trim();
+    }
+    
+    const rawTextMatch = content.match(/<raw_text>(.*?)<\/raw_text>/i);
+    if (rawTextMatch) {
+      result.raw_text = rawTextMatch[1].trim();
+    }
+    
+    // Extract clarification-related fields
+    const reasonMatch = content.match(/<reason>(.*?)<\/reason>/i);
+    if (reasonMatch) {
+      result.reason = reasonMatch[1].trim();
+    }
+    
+    const questionsMatch = content.match(/<questions>([\s\S]*?)<\/questions>/i);
+    if (questionsMatch) {
+      const questions = questionsMatch[1].match(/<question>(.*?)<\/question>/gi);
+      result.questions = questions ? questions.map(q => q.replace(/<\/?question>/gi, '').trim()) : [];
+    }
+    
+    const suggestedDetailsMatch = content.match(/<suggested_details>([\s\S]*?)<\/suggested_details>/i);
+    if (suggestedDetailsMatch) {
+      const details = suggestedDetailsMatch[1].match(/<detail>(.*?)<\/detail>/gi);
+      result.suggested_details = details ? details.map(d => d.replace(/<\/?detail>/gi, '').trim()) : [];
+    }
+    
+    // Extract keyword generation results
+    const primaryKeywordsMatch = content.match(/<primary_keywords>([\s\S]*?)<\/primary_keywords>/i);
+    if (primaryKeywordsMatch) {
+      const keywords = primaryKeywordsMatch[1].match(/<keyword>(.*?)<\/keyword>/gi);
+      result.primary_keywords = keywords ? keywords.map(kw => kw.replace(/<\/?keyword>/gi, '').trim()) : [];
+    }
+    
+    const databaseRelatedMatch = content.match(/<database_related>([\s\S]*?)<\/database_related>/i);
+    if (databaseRelatedMatch) {
+      const keywords = databaseRelatedMatch[1].match(/<keyword>(.*?)<\/keyword>/gi);
+      result.database_related = keywords ? keywords.map(kw => kw.replace(/<\/?keyword>/gi, '').trim()) : [];
+    }
+    
+    return result;
   }
 
   // Extract key-value pairs using regex as last resort
   static extractKeyValuePairs(content, fallback = {}) {
     const result = { ...fallback };
     
-    // Common patterns to extract
+    // Common patterns to extract from plain text
     const patterns = [
-      { key: 'jurisdiction', regex: /"jurisdiction":\s*"([^"]+)"/i },
-      { key: 'legal_areas', regex: /"legal_areas":\s*\[(.*?)\]/i, isArray: true },
-      { key: 'keywords', regex: /"keywords":\s*\[(.*?)\]/i, isArray: true },
-      { key: 'document_types', regex: /"document_types":\s*\[(.*?)\]/i, isArray: true },
-      { key: 'alternative_terms', regex: /"alternative_terms":\s*\[(.*?)\]/i, isArray: true },
-      { key: 'relevant', regex: /"relevant":\s*(true|false)/i, isBoolean: true },
-      { key: 'confidence', regex: /"confidence":\s*([\d.]+)/i, isNumber: true },
-      { key: 'needs_clarification', regex: /"needs_clarification":\s*(true|false)/i, isBoolean: true }
+      { key: 'jurisdiction', regex: /jurisdiction[:\s]+([a-zA-Z0-9\s]+)/i },
+      { key: 'legal_areas', regex: /legal[_\s]*areas[:\s]+(.*?)(?:\n|$)/i, isArray: true },
+      { key: 'keywords', regex: /keywords[:\s]+(.*?)(?:\n|$)/i, isArray: true },
+      { key: 'document_types', regex: /document[_\s]*types[:\s]+(.*?)(?:\n|$)/i, isArray: true },
+      { key: 'alternative_terms', regex: /alternative[_\s]*terms[:\s]+(.*?)(?:\n|$)/i, isArray: true },
+      { key: 'relevant', regex: /relevant[:\s]+(true|false)/i, isBoolean: true },
+      { key: 'confidence', regex: /confidence[:\s]+([\d.]+)/i, isNumber: true },
+      { key: 'needs_clarification', regex: /needs[_\s]*clarification[:\s]+(true|false)/i, isBoolean: true }
     ];
 
     for (const pattern of patterns) {
       const match = content.match(pattern.regex);
       if (match) {
         if (pattern.isArray) {
-          // Extract array items
-          const items = match[1].match(/"([^"]+)"/g) || [];
-          result[pattern.key] = items.map(item => item.replace(/"/g, ''));
+          // Split by common delimiters
+          const items = match[1].split(/[,;|]/).map(item => item.trim()).filter(item => item);
+          result[pattern.key] = items;
         } else if (pattern.isBoolean) {
           result[pattern.key] = match[1].toLowerCase() === 'true';
         } else if (pattern.isNumber) {
           result[pattern.key] = parseFloat(match[1]);
         } else {
-          result[pattern.key] = match[1];
+          result[pattern.key] = match[1].trim();
         }
       }
     }
@@ -112,7 +265,84 @@ class RobustJSONParser {
   }
 }
 
-const robustJSONParse = RobustJSONParser.parse.bind(RobustJSONParser);
+// XML Format Templates for clear LLM instructions
+const XML_FORMATS = {
+  analysis: `<analysis>
+<jurisdiction>qld</jurisdiction>
+<legal_areas>
+<area>business law</area>
+<area>administrative law</area>
+</legal_areas>
+<keywords>
+<keyword>cafe</keyword>
+<keyword>permits</keyword>
+</keywords>
+<document_types>
+<type>act</type>
+<type>regulation</type>
+</document_types>
+<alternative_terms>
+<term>restaurant</term>
+<term>food service</term>
+</alternative_terms>
+</analysis>`,
+
+  relevance: `<result>
+<relevant>true</relevant>
+<converted_question>what permits do I need to build a fence in Australia?</converted_question>
+<was_converted>true</was_converted>
+<confidence>0.8</confidence>
+<reason>Brief explanation of conversion and relevance</reason>
+</result>`,
+
+  location: `<result>
+<location_found>true</location_found>
+<city>Brisbane</city>
+<state>QLD</state>
+<raw_text>original location text</raw_text>
+</result>`,
+
+  clarification: `<result>
+<needs_clarification>true</needs_clarification>
+<reason>Missing business details</reason>
+<questions>
+<question>What type of food will you serve?</question>
+<question>Will this be dine-in or takeaway?</question>
+</questions>
+<suggested_details>
+<detail>Food type</detail>
+<detail>Service style</detail>
+</suggested_details>
+</result>`,
+
+  keywords: `<result>
+<primary_keywords>
+<keyword>main term 1</keyword>
+<keyword>main term 2</keyword>
+</primary_keywords>
+<database_related>
+<keyword>database term 1</keyword>
+<keyword>database term 2</keyword>
+</database_related>
+<alternative_terms>
+<term>synonym 1</term>
+<term>synonym 2</term>
+</alternative_terms>
+<legal_areas>
+<area>area 1</area>
+<area>area 2</area>
+</legal_areas>
+</result>`
+};
+
+const robustXMLParse = async (content, fallback = {}, options = {}) => {
+  try {
+    return await RobustXMLParser.parse(content, fallback, options);
+  } catch (error) {
+    console.warn('XML parsing wrapper caught error:', error.message);
+    return fallback;
+  }
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -140,7 +370,8 @@ async function initializeDatabase() {
     }
     
     // Initialize Background Intelligence Services after seeding
-    await initializeBackgroundIntelligence();
+    // Temporarily disabled to prevent server crashes
+    // await initializeBackgroundIntelligence();
     
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
@@ -163,7 +394,7 @@ async function initializeBackgroundIntelligence() {
     failureHandler = new IntelligentFailureHandler(backgroundIntelligence);
     
     // Start background intelligence (proactive document discovery)
-    backgroundIntelligence.start();
+    await backgroundIntelligence.start();
     
     console.log('✅ Background Intelligence Services started');
     console.log('🤖 System will now proactively generate questions and discover documents');
@@ -1467,9 +1698,17 @@ class QueryAnalyzer {
       return { relevant: true, reason: 'No API key available for filtering' };
     }
 
-    const prompt = `You are a filter for an Australian legal research service called LegalEase. 
+    const prompt = `You are a smart filter for an Australian legal research service called LegalEase.
 
-Your job is to determine if a user's question is relevant to Australian legal, regulatory, or compliance matters.
+Your job is to:
+1. First, try to convert the user's question into a legal question about Australian regulations, permits, or compliance
+2. Then determine if the question (original or converted) is relevant to Australian legal services
+
+CONVERSION EXAMPLES:
+- "build a fence" → "what permits and regulations apply to build a fence in Australia?"
+- "start a food truck" → "what licenses and permits do I need to operate a food truck in Australia?"
+- "rent an apartment" → "what are my rights and obligations when renting in Australia?"
+- "sell my car" → "what legal requirements apply when selling a car privately in Australia?"
 
 RELEVANT questions include:
 - Building regulations, permits, approvals (pergolas, sheds, fences, pools, extensions)
@@ -1483,23 +1722,24 @@ RELEVANT questions include:
 - Food safety, health regulations
 - Any Australian federal, state, or local government law
 
-NOT RELEVANT questions include:
-- General knowledge questions
-- Math, science, or academic subjects
+CANNOT BE CONVERTED (not relevant):
+- Pure general knowledge (e.g., "what is photosynthesis?")
+- Math or science calculations
 - International law (non-Australian)
-- Personal advice unrelated to law
-- Technology support
-- Medical advice
-- Random questions about celebrities, sports, etc.
+- Technology troubleshooting
+- Medical diagnosis
+- Entertainment questions
 
-Question: "${question}"
+Original Question: "${question}"
 
-Respond with ONLY a JSON object:
-{
-  "relevant": true/false,
-  "confidence": 0.0-1.0,
-  "reason": "Brief explanation of why this is/isn't relevant to Australian legal services"
-}`;
+Respond with ONLY an XML object:
+<result>
+<relevant>true/false</relevant>
+<converted_question>${question}</converted_question>
+<was_converted>true/false</was_converted>
+<confidence>0.0-1.0</confidence>
+<reason>Brief explanation of conversion and relevance decision</reason>
+</result>`;
 
     try {
       const headers = {
@@ -1520,7 +1760,7 @@ Respond with ONLY a JSON object:
           messages: [
             {
               role: 'system',
-              content: 'You are a relevance filter for Australian legal services. Respond only with valid JSON.'
+              content: 'You are a relevance filter for Australian legal services. Respond only with valid XML.'
             },
             {
               role: 'user', 
@@ -1541,21 +1781,71 @@ Respond with ONLY a JSON object:
       const content = data.choices[0].message.content.trim();
 
       try {
-        // Use robust JSON parser for relevance assessment
-        const result = robustJSONParse(content, {
+        // Create retry callback for relevance check
+        const retryCallback = async (expectedFormat) => {
+          const retryPrompt = `Your previous response could not be parsed. Please respond with EXACTLY this XML format:
+
+${expectedFormat}
+
+IMPORTANT: 
+- Use only the exact XML tags shown above
+- No additional text before or after the XML
+- No markdown code blocks
+- Values must be either true/false for booleans or plain text for strings
+
+Original question: "${question}"
+
+Respond with only the XML:`;
+
+          const retryResponse = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model: this.isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a relevance filter for Australian legal services. Respond ONLY with the requested XML format. No additional text.'
+                },
+                {
+                  role: 'user', 
+                  content: retryPrompt
+                }
+              ],
+              max_tokens: 150,
+              temperature: 0
+            })
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error(`Retry API error: ${retryResponse.status}`);
+          }
+
+          const retryData = await retryResponse.json();
+          return retryData.choices[0].message.content.trim();
+        };
+
+        // Use robust XML parser for relevance assessment with retry
+        const result = await robustXMLParse(content, {
           relevant: true,
           confidence: 0.5,
           reason: 'Relevance assessment completed'
+        }, {
+          retryCallback,
+          expectedFormat: XML_FORMATS.relevance,
+          maxRetries: 2
         });
         
         return {
           relevant: result.relevant || false,
+          converted_question: result.converted_question || question,
+          was_converted: result.was_converted || false,
           confidence: result.confidence || 0.5,
           reason: result.reason || 'Relevance assessment completed'
         };
       } catch (parseError) {
-        console.warn('Failed to parse relevance response:', content);
-        return { relevant: true, reason: 'Parse error, allowing question' };
+        console.warn('Failed to parse relevance response after retries:', content);
+        return { relevant: true, reason: 'Parse error after retries, allowing question' };
       }
     } catch (error) {
       console.warn('Relevance check error:', error.message);
@@ -1602,14 +1892,26 @@ ${attempt > 1 ? `
 PREVIOUS ATTEMPTS FAILED: Try different combinations of database keywords.
 ` : ''}
 
-Respond in JSON format:
-{
-  "jurisdiction": "string",
-  "legal_areas": ["array of legal areas"],
-  "keywords": ["array of relevant keywords"],
-  "document_types": ["array of document types"],
-  "alternative_terms": ["array of alternative terms"]
-}`;
+Respond in XML format:
+<analysis>
+<jurisdiction>string</jurisdiction>
+<legal_areas>
+<area>area1</area>
+<area>area2</area>
+</legal_areas>
+<keywords>
+<keyword>keyword1</keyword>
+<keyword>keyword2</keyword>
+</keywords>
+<document_types>
+<type>type1</type>
+<type>type2</type>
+</document_types>
+<alternative_terms>
+<term>term1</term>
+<term>term2</term>
+</alternative_terms>
+</analysis>`;
 
     // Choose model based on provider
     const model = this.isOpenRouter 
@@ -1656,13 +1958,62 @@ Respond in JSON format:
       const content = data.choices[0].message.content;
       
       try {
-        // Use robust JSON parser for LLM analysis
-        const analysis = robustJSONParse(content, {
+        // Create retry callback for LLM analysis
+        const retryCallback = async (expectedFormat) => {
+          const retryPrompt = `Your previous response could not be parsed. Please respond with EXACTLY this XML format:
+
+${expectedFormat}
+
+IMPORTANT: 
+- Use only the exact XML tags shown above
+- No additional text before or after the XML
+- No markdown code blocks
+- Replace example values with real analysis
+
+Original question: "${question}"
+Location: "${location}"
+
+Analyze and respond with only the XML:`;
+
+          const retryResponse = await fetch(`${this.baseURL}/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model,
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are an expert in Australian legal taxonomy. Respond ONLY with the requested XML format. No additional text.'
+                },
+                {
+                  role: 'user', 
+                  content: retryPrompt
+                }
+              ],
+              max_tokens: 800,
+              temperature: 0
+            })
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error(`Retry API error: ${retryResponse.status}`);
+          }
+
+          const retryData = await retryResponse.json();
+          return retryData.choices[0].message.content.trim();
+        };
+
+        // Use robust XML parser for LLM analysis
+        const analysis = await robustXMLParse(content, {
           jurisdiction: location && location.toLowerCase().includes('qld') ? 'qld' : 'Australia',
           legal_areas: ['general law'],
           keywords: question.split(' ').filter(w => w.length > 2).slice(0, 5),
           document_types: ['act', 'regulation'],
           alternative_terms: []
+        }, {
+          retryCallback,
+          expectedFormat: XML_FORMATS.analysis,
+          maxRetries: 2
         });
         console.log(`🧠 LLM Analysis (attempt ${attempt}):`, analysis);
         return analysis;
@@ -1759,12 +2110,25 @@ Generate relevant search keywords based on the question and existing database ta
 3. Jurisdiction-specific terms if applicable
 4. Alternative legal terminology
 
-Return as JSON: {
-  "primary_keywords": ["main terms from question"],
-  "database_related": ["relevant terms from our database tags"],
-  "alternative_terms": ["synonyms and variations"],
-  "legal_areas": ["area of law categories"]
-}`;
+Return as XML: 
+<result>
+<primary_keywords>
+<keyword>main term 1</keyword>
+<keyword>main term 2</keyword>
+</primary_keywords>
+<database_related>
+<keyword>database term 1</keyword>
+<keyword>database term 2</keyword>
+</database_related>
+<alternative_terms>
+<term>synonym 1</term>
+<term>synonym 2</term>
+</alternative_terms>
+<legal_areas>
+<area>area 1</area>
+<area>area 2</area>
+</legal_areas>
+</result>`;
 
       // Use the same API call pattern as other methods in this class
       const model = this.isOpenRouter 
@@ -1810,7 +2174,7 @@ Return as JSON: {
       const result = data.choices[0]?.message?.content?.trim() || '';
       
       // Use robust JSON parser instead of fragile JSON.parse
-      return robustJSONParse(result, {
+      return await robustXMLParse(result, {
         primary_keywords: [question.split(' ').slice(0, 3).join(' ')],
         database_related: [],
         alternative_terms: [],
@@ -1901,8 +2265,8 @@ REQUIRED FORMAT:
     <authority>Australian Securities and Investments Commission (ASIC)</authority>
     <description>Register your business and obtain an ABN</description>
     <actions>
-      <action step="1" link="https://asic.gov.au/register">Register business name with ASIC</action>
-      <action step="2" link="https://abr.gov.au">Apply for Australian Business Number (ABN)</action>
+      <action step="1" link="[URL from document]" contact_phone="[phone from document]" contact_email="[email from document]" contact_website="[website from document]" contact_hours="[hours from document]">Action description</action>
+      <action step="2" link="[URL from document]" contact_chatbot="[chatbot from document]" contact_hours="[hours from document]">Action description</action>
     </actions>
     <notes>
       <note>Required before applying for local permits</note>
@@ -1918,6 +2282,7 @@ INSTRUCTIONS:
 - Include specific references to which acts or regulations you're citing
 - Extract each permit/license/requirement as a separate <requirement> in the XML
 - Use the available links provided above in both the answer text and XML action links
+- Extract contact information from the legal documents and include it directly in each action step using attributes: contact_phone, contact_email, contact_website, contact_chatbot, contact_hours (only include if found in the documents)
 - Set jurisdiction_level to: federal, state, or local
 - Set priority to: high, medium, or low based on importance
 - Always end the natural answer with the legal disclaimer
@@ -2048,11 +2413,31 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
           const actionContent = actionMatch.match(/<action[^>]*>([\s\S]*?)<\/action>/)[1];
           const stepMatch = actionMatch.match(/step="(\d+)"/);
           const linkMatch = actionMatch.match(/link="([^"]*)"/);
+          const contactPhoneMatch = actionMatch.match(/contact_phone="([^"]*)"/);
+          const contactTypeMatch = actionMatch.match(/contact_type="([^"]*)"/);
+          const contactEmailMatch = actionMatch.match(/contact_email="([^"]*)"/);
+          const contactChatbotMatch = actionMatch.match(/contact_chatbot="([^"]*)"/);
+          const contactWebsiteMatch = actionMatch.match(/contact_website="([^"]*)"/);
+          const contactHoursMatch = actionMatch.match(/contact_hours="([^"]*)"/);
+          
+          // Clean up action content to remove any embedded XML tags
+          let cleanActionContent = actionContent.trim();
+          // Remove any opening action tag that might be included in the content
+          cleanActionContent = cleanActionContent.replace(/<action[^>]*>/g, '');
+          // Remove any closing action tag
+          cleanActionContent = cleanActionContent.replace(/<\/action>/g, '');
           
           return {
             step: stepMatch ? parseInt(stepMatch[1]) : index + 1,
-            desc: actionContent.trim(),
-            link: linkMatch ? linkMatch[1] : undefined
+            desc: cleanActionContent,
+            text: cleanActionContent, // Vue component uses both desc and text
+            link: linkMatch ? linkMatch[1] : undefined,
+            contact_phone: contactPhoneMatch ? contactPhoneMatch[1] : undefined,
+            contact_type: contactTypeMatch ? contactTypeMatch[1] : undefined,
+            contact_email: contactEmailMatch ? contactEmailMatch[1] : undefined,
+            contact_chatbot: contactChatbotMatch ? contactChatbotMatch[1] : undefined,
+            contact_website: contactWebsiteMatch ? contactWebsiteMatch[1] : undefined,
+            contact_hours: contactHoursMatch ? contactHoursMatch[1] : undefined
           };
         });
 
@@ -2425,6 +2810,47 @@ app.post('/api/trigger-intelligence', async (req, res) => {
   }
 });
 
+// Query cancellation endpoint
+app.post('/api/cancel-query', async (req, res) => {
+  try {
+    const { queryId } = req.body;
+    
+    if (!queryId) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryId is required'
+      });
+    }
+
+    // Find and mark the query as cancelled
+    const tracker = activeQueries.get(queryId);
+    if (tracker) {
+      tracker.cancelled = true;
+      console.log(`🚫 Query ${queryId} cancelled by user request`);
+      
+      // Remove from active queries immediately
+      activeQueries.delete(queryId);
+      
+      res.json({
+        success: true,
+        message: 'Query cancelled successfully',
+        queryId
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Query not found or already completed',
+        queryId
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Permit site ingestion endpoints
 app.post('/api/ingest-permits', async (req, res) => {
   try {
@@ -2663,7 +3089,9 @@ app.post('/api/legal/ask', async (req, res) => {
     eventTracker.addEvent('relevance_check_complete', `Relevance check complete: ${relevanceCheck.relevant ? 'relevant' : 'not relevant'}`, {
       relevant: relevanceCheck.relevant,
       confidence: relevanceCheck.confidence,
-      reason: relevanceCheck.reason
+      reason: relevanceCheck.reason,
+      was_converted: relevanceCheck.was_converted,
+      converted_question: relevanceCheck.converted_question
     });
 
     if (!relevanceCheck.relevant) {
@@ -2676,6 +3104,12 @@ app.post('/api/legal/ask', async (req, res) => {
         events: eventTracker.getEvents(),
         executionTime: Date.now() - startTime
       });
+    }
+
+    // Use converted question if one was generated
+    if (relevanceCheck.was_converted && relevanceCheck.converted_question !== processedQuestion) {
+      eventTracker.addEvent('question_converted', `Question converted: "${processedQuestion}" → "${relevanceCheck.converted_question}"`);
+      processedQuestion = relevanceCheck.converted_question;
     }
 
     // Extract and parse location information using location mapper
@@ -2710,27 +3144,28 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
-    // Check if question needs clarification (use translated question) - unless bypassed
+    // Start clarification check in parallel (non-blocking) - send via WebSocket when ready
+    let clarificationSuggestions = { needs_clarification: false, questions: [], suggested_details: [], reason: '' };
+    let clarificationPromise = null;
+    
     if (!bypassClarification) {
-      eventTracker.addEvent('clarification_check_start', 'Checking if question needs clarification');
-      const clarificationCheck = await checkNeedsClarification(processedQuestion);
+      eventTracker.addEvent('clarification_check_start', 'Checking if question could benefit from more details');
       
-      if (clarificationCheck.needs_clarification) {
-        eventTracker.addEvent('clarification_needed', 'Question needs clarification', clarificationCheck);
-        eventTracker.complete(true, 'Clarification questions generated');
-        return res.json({
-          success: true,
-          needs_clarification: true,
-          clarification_questions: clarificationCheck.questions,
-          suggested_details: clarificationCheck.suggested_details,
-          reason: clarificationCheck.reason,
-          queryId,
-          events: eventTracker.getEvents(),
-          executionTime: Date.now() - startTime
-        });
-      }
-      
-      eventTracker.addEvent('clarification_check_complete', 'No clarification needed, proceeding with query');
+      // Run clarification check in parallel without blocking main processing
+      clarificationPromise = checkNeedsClarification(processedQuestion).then(suggestions => {
+        if (suggestions.needs_clarification) {
+          // Send real-time clarification suggestions via WebSocket
+          eventTracker.addEvent('clarification_suggestions_ready', 'Clarification suggestions available', {
+            suggestions: suggestions.questions,
+            reason: suggestions.reason,
+            suggested_details: suggestions.suggested_details
+          });
+        }
+        return suggestions;
+      }).catch(error => {
+        console.warn('Clarification check failed:', error);
+        return { needs_clarification: false, questions: [], suggested_details: [], reason: '' };
+      });
     } else {
       eventTracker.addEvent('clarification_bypassed', 'Clarification check bypassed by user request');
     }
@@ -2876,6 +3311,15 @@ app.post('/api/legal/ask', async (req, res) => {
       events_count: eventTracker.getEvents().length
     });
 
+    // Wait for clarification check to complete if it was started
+    if (clarificationPromise) {
+      try {
+        clarificationSuggestions = await clarificationPromise;
+      } catch (error) {
+        console.warn('Clarification promise failed:', error);
+      }
+    }
+
     // Complete tracking (avoid circular reference by passing summary)
     const resultSummary = {
       success: true,
@@ -2896,7 +3340,9 @@ app.post('/api/legal/ask', async (req, res) => {
       queryId,
       executionTime: Date.now() - startTime,
       tokensUsed: englishResponse.tokensUsed || null,
-      events: eventTracker.getEvents()
+      events: eventTracker.getEvents(),
+      // Include clarification suggestions (non-blocking)
+      clarification_suggestions: clarificationSuggestions
     };
 
     res.json(finalResult);
@@ -2971,7 +3417,7 @@ app.get('/api/legal/history', async (req, res) => {
 });
 
 // Start server with WebSocket support
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4003;
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
@@ -2981,31 +3427,45 @@ wss.on('connection', (ws) => {
   
   ws.on('message', (message) => {
     try {
-      const data = robustJSONParse(message, {});
+      const messageStr = typeof message === 'string' ? message : message.toString();
+      const data = JSON.parse(messageStr);
       
       if (data.type === 'subscribe' && data.queryId) {
         // Subscribe to query events
         const tracker = activeQueries.get(data.queryId);
         if (tracker) {
           tracker.subscribe(ws);
-          ws.send(JSON.stringify({
+          const response = JSON.stringify({
             type: 'subscribed',
             queryId: data.queryId,
             message: 'Successfully subscribed to query events'
-          }));
+          });
+          if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(response);
+          }
         } else {
-          ws.send(JSON.stringify({
+          const response = JSON.stringify({
             type: 'error',
             message: `Query ${data.queryId} not found`
-          }));
+          });
+          if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(response);
+          }
         }
       }
     } catch (error) {
       console.error('WebSocket message error:', error);
-      ws.send(JSON.stringify({
+      const response = JSON.stringify({
         type: 'error',
         message: 'Invalid message format'
-      }));
+      });
+      if (ws.readyState === 1) { // WebSocket.OPEN
+        try {
+          ws.send(response);
+        } catch (sendError) {
+          console.error('Failed to send WebSocket error message:', sendError);
+        }
+      }
     }
   });
   
@@ -3235,13 +3695,13 @@ Instructions:
 - Use standard Australian state abbreviations (NSW, VIC, QLD, WA, SA, TAS, NT, ACT)
 - If no location found, return null
 
-Respond in this JSON format:
-{
-  "location_found": true/false,
-  "city": "city name or null",
-  "state": "state code or null", 
-  "raw_text": "original location text found"
-}`;
+Respond in this XML format:
+<result>
+<location_found>true/false</location_found>
+<city>city name or null</city>
+<state>state code or null</state>
+<raw_text>original location text found</raw_text>
+</result>`;
 
     const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
@@ -3265,12 +3725,63 @@ Respond in this JSON format:
     
     if (content) {
       try {
-        const locationData = robustJSONParse(content, {});
+        // Create retry callback for location extraction
+        const retryCallback = async (expectedFormat) => {
+          const retryPrompt = `Your previous response could not be parsed. Please respond with EXACTLY this XML format:
+
+${expectedFormat}
+
+IMPORTANT: 
+- Use only the exact XML tags shown above
+- No additional text before or after the XML
+- No markdown code blocks
+- Use true/false for location_found
+- Use proper city and state names
+
+Original question: "${question}"
+
+Respond with only the XML:`;
+
+          const retryResponse = await fetch(`${baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://govhack2025.com',
+              'X-Title': 'LegalEase - Location Extraction'
+            },
+            body: JSON.stringify({
+              model: 'anthropic/claude-3-haiku:beta',
+              messages: [{
+                role: 'system',
+                content: 'You are a location extractor for Australian legal queries. Respond ONLY with the requested XML format. No additional text.'
+              }, {
+                role: 'user',
+                content: retryPrompt
+              }],
+              max_tokens: 150,
+              temperature: 0
+            })
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error(`Retry API error: ${retryResponse.status}`);
+          }
+
+          const retryData = await retryResponse.json();
+          return retryData.choices[0].message.content.trim();
+        };
+
+        const locationData = await robustXMLParse(content, {}, {
+          retryCallback,
+          expectedFormat: XML_FORMATS.location,
+          maxRetries: 1
+        });
         if (locationData.location_found && locationData.city && locationData.state) {
           return `${locationData.city}, ${locationData.state}`;
         }
       } catch (parseError) {
-        console.warn('Failed to parse location extraction response:', parseError);
+        console.warn('Failed to parse location extraction response after retries:', parseError);
       }
     }
     
@@ -3321,13 +3832,20 @@ Examples of BAD questions (NEVER ask these):
 - "What licenses do you need?"
 - "Have you checked regulations?"
 
-Respond in this JSON format:
-{
-  "needs_clarification": true/false,
-  "reason": "brief explanation of what business details are missing",
-  "questions": ["What type of food will you serve?", "Will this be dine-in or takeaway?"],
-  "suggested_details": ["Food type", "Service style", "Location"]
-}`;
+Respond in this XML format:
+<result>
+<needs_clarification>true/false</needs_clarification>
+<reason>brief explanation of what business details are missing</reason>
+<questions>
+<question>What type of food will you serve?</question>
+<question>Will this be dine-in or takeaway?</question>
+</questions>
+<suggested_details>
+<detail>Food type</detail>
+<detail>Service style</detail>
+<detail>Location</detail>
+</suggested_details>
+</result>`;
 
     const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
@@ -3351,7 +3869,10 @@ Respond in this JSON format:
     
     if (content) {
       try {
-        const clarificationData = robustJSONParse(content, {});
+        const clarificationData = await robustXMLParse(content, {}, {
+          maxRetries: 1,
+          expectedFormat: XML_FORMATS.clarification
+        });
         return {
           needs_clarification: clarificationData.needs_clarification || false,
           reason: clarificationData.reason || '',

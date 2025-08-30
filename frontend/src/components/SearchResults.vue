@@ -149,6 +149,52 @@
                 
                 <div class="action-content">
                   <div class="step-description">{{ action.desc }}</div>
+                  
+                  <!-- Contact Information -->
+                  <div v-if="action.contact_phone || action.contact_email || action.contact_chatbot || action.contact_website || action.contact_hours" class="step-contact">
+                    <div class="contact-label">Contact:</div>
+                    <div class="contact-details">
+                      <a 
+                        v-if="action.contact_phone" 
+                        :href="`tel:${action.contact_phone}`"
+                        class="contact-phone"
+                      >
+                        📞 {{ action.contact_phone }}
+                      </a>
+                      <a 
+                        v-if="action.contact_email" 
+                        :href="`mailto:${action.contact_email}`"
+                        class="contact-email"
+                      >
+                        ✉️ {{ action.contact_email }}
+                      </a>
+                      <a 
+                        v-if="action.contact_website" 
+                        :href="action.contact_website"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="contact-website"
+                      >
+                        🌐 Website
+                      </a>
+                      <a 
+                        v-if="action.contact_chatbot" 
+                        :href="action.contact_chatbot"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="contact-chatbot"
+                      >
+                        💬 Live Chat
+                      </a>
+                      <div 
+                        v-if="action.contact_hours" 
+                        class="contact-hours"
+                      >
+                        🕐 {{ action.contact_hours }}
+                      </div>
+                    </div>
+                  </div>
+                  
                   <a 
                     v-if="action.link" 
                     :href="action.link" 
@@ -722,6 +768,54 @@ const saveResults = () => {
 .step-description {
   color: #1f2937;
   margin-bottom: 0.5rem;
+}
+
+.step-contact {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  border-radius: 0.5rem;
+}
+
+.contact-label {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.contact-details {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.contact-phone,
+.contact-email,
+.contact-website,
+.contact-chatbot {
+  color: #059669;
+  text-decoration: none;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.contact-phone:hover,
+.contact-email:hover,
+.contact-website:hover,
+.contact-chatbot:hover {
+  text-decoration: underline;
+}
+
+.contact-hours {
+  color: #6b7280;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .step-link {

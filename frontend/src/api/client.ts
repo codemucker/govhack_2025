@@ -152,8 +152,39 @@ export class ApiClient {
   private connectWebSocket() {
     if (this.websocket?.readyState === WebSocket.OPEN) return;
 
-    const wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
-    this.websocket = new WebSocket(wsUrl);
+    // Handle WebSocket URL construction properly for dev and production
+    let wsUrl: string;
+    if (this.baseUrl) {
+      wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+    } else {
+      // In development mode with empty baseUrl, use proxy path
+      if (import.meta.env.DEV) {
+        // Use the Vite dev server's WebSocket proxy
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${location.host}/ws`;
+      } else {
+        // Production: connect directly to the server
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${location.host}`;
+      }
+    }
+
+    console.log('Connecting to WebSocket URL:', wsUrl);
+
+    // Validate the URL before creating WebSocket
+    try {
+      new URL(wsUrl); // This will throw if URL is invalid
+    } catch (error) {
+      console.error('Invalid WebSocket URL:', wsUrl, error);
+      return;
+    }
+
+    try {
+      this.websocket = new WebSocket(wsUrl);
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      return;
+    }
 
     this.websocket.onmessage = (event) => {
       try {
@@ -211,11 +242,13 @@ export class ApiClient {
       body: JSON.stringify(requestBody)
     });
 
-    if (!response.ok) {
+    const result = await response.json() as AskQuestionResponse;
+
+    // Don't throw for 400 responses - they contain valid error information
+    // Only throw for actual network/server errors (5xx)
+    if (!response.ok && response.status >= 500) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-
-    const result = await response.json() as AskQuestionResponse;
 
     // If there's an event callback and we have a queryId, set up real-time listening
     if (params.onEvent && result.queryId) {
@@ -223,6 +256,23 @@ export class ApiClient {
     }
 
     return result;
+  }
+
+  // Cancel an ongoing query
+  async cancelQuery(queryId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${this.baseUrl}/api/cancel-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ queryId })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to cancel query: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   // Convenience method for location detection

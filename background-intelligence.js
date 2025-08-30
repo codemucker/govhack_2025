@@ -35,7 +35,7 @@ export class BackgroundIntelligenceService {
   }
 
   // Start the background intelligence service
-  start() {
+  async start() {
     if (this.isRunning) {
       console.log('🧠 Background Intelligence Service already running');
       return;
@@ -43,6 +43,9 @@ export class BackgroundIntelligenceService {
 
     console.log('🚀 Starting Background Intelligence Service...');
     this.isRunning = true;
+    
+    // Load previously generated questions for continuity
+    await this.loadPreviousQuestions();
     
     // Initial seeding
     setTimeout(() => this.runIntelligenceCycle(), 5000);
@@ -61,6 +64,35 @@ export class BackgroundIntelligenceService {
     }
     this.isRunning = false;
     console.log('⏹️ Background Intelligence Service stopped');
+  }
+
+  // Load previously generated questions to avoid regenerating the same ones
+  async loadPreviousQuestions() {
+    try {
+      const previousQueries = await this.db.runQuery(`
+        SELECT DISTINCT question 
+        FROM queries 
+        WHERE relevance_reason LIKE '%Background Intelligence%'
+        ORDER BY created_at DESC
+        LIMIT 100
+      `);
+      
+      let loadedCount = 0;
+      if (previousQueries && Array.isArray(previousQueries)) {
+        for (const row of previousQueries) {
+          if (row.question) {
+            this.processedQuestions.add(row.question);
+            loadedCount++;
+          }
+        }
+      }
+      
+      if (loadedCount > 0) {
+        console.log(`🧠 Loaded ${loadedCount} previously generated questions to avoid duplication`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not load previous questions:', error.message);
+    }
   }
 
   // Main intelligence cycle
