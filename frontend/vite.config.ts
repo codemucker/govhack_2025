@@ -30,11 +30,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       },
-      // Proxy WebSocket connections
+      // Proxy WebSocket connections to the root path
       '^/ws': {
-        target: 'ws://localhost:4003',
+        target: 'ws://localhost:4003/',
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ws/, '')
       }
     }
   },

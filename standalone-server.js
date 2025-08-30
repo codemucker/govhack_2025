@@ -2281,7 +2281,7 @@ Return as XML:
 // Enhanced OpenAI/OpenRouter client with two-tier LLM system
 class StandaloneOpenAIClient {
   constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY;
+    this.apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     this.isOpenRouter = this.apiKey && this.apiKey.startsWith('sk-or-v1-');
     this.baseURL = this.isOpenRouter 
       ? 'https://openrouter.ai/api/v1'
@@ -2292,7 +2292,7 @@ class StandaloneOpenAIClient {
 
   async generateAnswer(question, context, userLocale = 'en-AU', deepLinks = []) {
     if (!this.apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is required');
+      throw new Error('OPENROUTER_API_KEY or OPENAI_API_KEY environment variable is required');
     }
 
     // Always process in English - translation happens elsewhere
@@ -3664,7 +3664,10 @@ async function translateToEnglish(question, assumedLanguage) {
     });
 
     const result = await response.json();
+    console.log(`🔍 Translation API response status: ${response.status}`);
+    console.log(`🔍 Translation API result:`, JSON.stringify(result, null, 2));
     const content = result.choices?.[0]?.message?.content?.trim();
+    console.log(`🔍 Translation content:`, content);
     
     if (!content) {
       console.error('Translation API returned empty content');
@@ -3709,6 +3712,7 @@ async function translateResponse(englishResponse, toLanguage) {
       'ar': 'Arabic',
       'hi': 'Hindi',
       'vi': 'Vietnamese',
+      'ru': 'Russian',
       'ko': 'Korean',
       'fr': 'French',
       'de': 'German',
@@ -3775,12 +3779,16 @@ async function translateResponse(englishResponse, toLanguage) {
 
 // Detect language of the question using simple pattern matching
 function detectQueryLanguage(question) {
+  console.log(`🌐 Detecting language for: "${question}"`);
+  console.log(`🔍 Question length: ${question.length}, first char code: ${question.charCodeAt(0)}`);
+  
   // Simple pattern-based language detection - order matters for overlapping patterns
   const patterns = {
     'zh': /[\u4e00-\u9fff]/, // Chinese characters
     'ar': /[\u0600-\u06ff\u0750-\u077f]/, // Arabic and extended Arabic
     'hi': /[\u0900-\u097f]/, // Devanagari (Hindi)
     'ko': /[\uac00-\ud7af]/, // Korean
+    'ru': /[\u0400-\u04ff]/, // Cyrillic (Russian, Bulgarian, Serbian, etc.)
     'es': /[ñ¿¡]|(?:\b(?:el|la|los|las|un|una|y|o|del|de|que|es|en|con|por|para|se|te|me|le|su|sus|mi|mis|tu|tus|no|si|qué|cómo|dónde|cuándo|quién|por qué)\b)/, // Spanish specific: ñ, inverted punctuation, common words
     'vi': /[ạảãâầấậẩẫăằắặẳẵẹẻẽêềếệểễịỉĩọỏõôồốộổỗơờớợởỡụủũưừứựửữỵỷỹđ]/, // Vietnamese specific diacritics
     'fr': /[àâäêëïîôöùûüÿç]/, // French specific characters
@@ -3789,8 +3797,11 @@ function detectQueryLanguage(question) {
   };
 
   for (const [lang, pattern] of Object.entries(patterns)) {
-    if (pattern.test(question)) {
-      console.log(`🌐 Detected query language: ${lang}`);
+    console.log(`🔍 Testing ${lang} pattern: ${pattern}`);
+    const matches = pattern.test(question);
+    console.log(`🔍 ${lang} match result: ${matches}`);
+    if (matches) {
+      console.log(`✅ Detected query language: ${lang}`);
       return lang;
     }
   }

@@ -150,7 +150,10 @@ export class ApiClient {
 
   // Connect to WebSocket for real-time events
   private connectWebSocket() {
-    if (this.websocket?.readyState === WebSocket.OPEN) return;
+    if (this.websocket?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected');
+      return;
+    }
 
     // Handle WebSocket URL construction properly for dev and production
     let wsUrl: string;
@@ -169,7 +172,7 @@ export class ApiClient {
       }
     }
 
-    console.log('Connecting to WebSocket URL:', wsUrl);
+    console.log('🔌 Attempting WebSocket connection to:', wsUrl);
 
     // Validate the URL before creating WebSocket
     try {
@@ -186,27 +189,62 @@ export class ApiClient {
       return;
     }
 
+    this.websocket.onopen = () => {
+      console.log('✅ WebSocket connection established successfully');
+      // Subscribe to all pending query events
+      for (const queryId of this.eventCallbacks.keys()) {
+        console.log('📡 Subscribing to pending query:', queryId);
+        this.subscribeToQuery(queryId);
+      }
+    };
+
     this.websocket.onmessage = (event) => {
+      console.log('📨 WebSocket message received:', event.data);
       try {
         const queryEvent: QueryEvent = JSON.parse(event.data);
+        console.log('🎯 Parsed query event:', queryEvent.type, 'for query:', queryEvent.queryId);
         const callback = this.eventCallbacks.get(queryEvent.queryId);
         if (callback) {
+          console.log('🔄 Calling event callback for:', queryEvent.queryId);
           callback(queryEvent);
+        } else {
+          console.warn('⚠️ No callback found for query:', queryEvent.queryId);
         }
       } catch (error) {
-        console.warn('Failed to parse WebSocket event:', error);
+        console.warn('❌ Failed to parse WebSocket event:', error);
       }
     };
 
     this.websocket.onerror = (error) => {
-      console.warn('WebSocket error:', error);
+      console.error('❌ WebSocket error:', error);
     };
+
+    this.websocket.onclose = (event) => {
+      console.log('🔌 WebSocket connection closed:', event.code, event.reason);
+    };
+  }
+
+  // Send subscription message to backend
+  private subscribeToQuery(queryId: string) {
+    if (this.websocket?.readyState === WebSocket.OPEN) {
+      const subscribeMessage = {
+        type: 'subscribe',
+        queryId: queryId
+      };
+      this.websocket.send(JSON.stringify(subscribeMessage));
+      console.log(`Subscribed to query events: ${queryId}`);
+    }
   }
 
   // Subscribe to real-time events for a query
   onQueryEvents(queryId: string, callback: (event: QueryEvent) => void) {
     this.eventCallbacks.set(queryId, callback);
     this.connectWebSocket();
+    
+    // If WebSocket is already open, subscribe immediately
+    if (this.websocket?.readyState === WebSocket.OPEN) {
+      this.subscribeToQuery(queryId);
+    }
   }
 
   // Unsubscribe from query events
