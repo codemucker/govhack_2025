@@ -83,8 +83,10 @@ export class ApiClient {
   private eventCallbacks: Map<string, (event: QueryEvent) => void> = new Map();
   private websocket: WebSocket | null = null;
 
-  constructor(baseUrl: string = 'http://localhost:4000') {
-    this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+  constructor(baseUrl: string = '') {
+    // In development, use relative URLs so Vite proxy works
+    // In production, use the full URL
+    this.baseUrl = baseUrl || (import.meta.env.DEV ? '' : 'http://localhost:4000');
   }
 
   // Connect to WebSocket for real-time events

@@ -97,8 +97,44 @@ import SearchResults from '../components/SearchResults.vue'
 import SearchWizard from '../components/SearchWizard.vue'
 import ExportDialog from '../components/ExportDialog.vue'
 import PrintView from '../components/PrintView.vue'
-import { useTriageSearch, type TriageResponse } from '../composables/useApi'
+import { apiClient } from '../api/client'
+import type { AskQuestionResponse } from '../api/client'
 import type { ExportData } from '../composables/useExport'
+
+// Type mapping for compatibility with existing Search components
+type TriageResponse = {
+  query: {
+    raw: string
+    location?: {
+      address: string
+      council?: string
+      state?: string
+    }
+    assumptions: string[]
+  }
+  jurisdictions: Array<{
+    name: string
+    level: 'local' | 'state' | 'federal'
+    confidence: number
+  }>
+  requirements: Array<{
+    title: string
+    authority: string
+    actions: Array<{
+      step: number
+      desc: string
+      link?: string
+    }>
+    notes: string[]
+  }>
+  contacts: Array<{
+    authority: string
+    type: string
+    phone?: string
+    url: string
+  }>
+  disclaimer: string
+}
 
 // Search mode
 const wizardMode = ref(false)
@@ -138,11 +174,67 @@ const exportData = ref<ExportData>({
 const printData = ref<ExportData | null>(null)
 const printViewRef = ref()
 
-// Use the triage search composable
-const { performTriage } = useTriageSearch()
+/**
+ * Convert AskQuestionResponse to TriageResponse format for compatibility
+ */
+function convertToTriageResponse(response: AskQuestionResponse, originalQuery: string, originalAddress?: string): TriageResponse {
+  // Extract basic assumptions from the response
+  const assumptions = [
+    'Using real-time Australian legal document analysis',
+    'Based on current regulatory requirements',
+    'Includes multi-jurisdictional compliance'
+  ]
+  
+  // Create jurisdiction info from sources
+  const jurisdictions = response.sources?.map(source => ({
+    name: source.jurisdiction,
+    level: source.jurisdiction_level === 'commonwealth' ? 'federal' as const : 
+           source.jurisdiction_level === 'state' ? 'state' as const : 'local' as const,
+    confidence: (source.total_score || 50) / 100
+  })) || []
+
+  // Extract requirements from deep links
+  const requirements = response.deep_links?.filter(link => 
+    link.type === 'permit_application' || link.type === 'regulatory_authority'
+  ).map((link, index) => ({
+    title: link.title,
+    authority: link.authority || link.jurisdiction,
+    actions: [{
+      step: 1,
+      desc: link.description,
+      link: link.url
+    }],
+    notes: [link.description]
+  })) || []
+
+  // Extract contacts from regulatory authority links
+  const contacts = response.deep_links?.filter(link => 
+    link.type === 'regulatory_authority'
+  ).map(link => ({
+    authority: link.authority || link.jurisdiction,
+    type: link.contact_type || 'General',
+    url: link.url
+  })) || []
+
+  return {
+    query: {
+      raw: originalQuery,
+      location: originalAddress ? {
+        address: originalAddress,
+        council: response.sources?.find(s => s.jurisdiction_level === 'local')?.jurisdiction,
+        state: response.sources?.find(s => s.jurisdiction_level === 'state')?.jurisdiction
+      } : undefined,
+      assumptions
+    },
+    jurisdictions,
+    requirements,
+    contacts,
+    disclaimer: "This information is generated from real-time analysis of Australian legal documents and should not be considered legal advice. Always verify current requirements with the relevant authorities."
+  }
+}
 
 /**
- * Perform search with form data
+ * Perform search with form data using the new API client
  * @param data - Form data containing query and address
  */
 const performSearch = async (data: { query: string; address: string }) => {
@@ -153,10 +245,20 @@ const performSearch = async (data: { query: string; address: string }) => {
   result.value = null
   
   try {
-    result.value = await performTriage({
-      query: data.query,
-      address: data.address || undefined,
+    const response = await apiClient.askLegalQuestion({
+      question: data.query,
+      userLocale: 'en-AU',
+      context: {
+        location: data.address || undefined
+      }
     })
+    
+    if (response.success && response.answer) {
+      // Convert the new API response format to the old format for compatibility
+      result.value = convertToTriageResponse(response, data.query, data.address)
+    } else {
+      error.value = response.error || 'Failed to get legal guidance'
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred'
   } finally {
