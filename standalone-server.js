@@ -7,7 +7,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { PersistentDatabase } from './persistent-database.js';
@@ -348,6 +348,9 @@ const robustXMLParse = async (content, fallback = {}, options = {}) => {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load legal taxonomy
+const legalTaxonomy = JSON.parse(readFileSync(join(__dirname, 'data', 'legal-taxonomy.json'), 'utf8'));
 
 // Initialize persistent database with disk caching
 const db = new PersistentDatabase();
@@ -887,27 +890,51 @@ class AustLIIDiscovery {
       });
     }
     
-    // Local council - for property, planning, dispute matters
-    const needsCouncilSupport = legal_areas.some(area => 
-      area.includes('local government') || 
-      area.includes('property') || 
-      area.includes('development') || 
-      area.includes('planning') ||
-      area.includes('residential') ||
-      area.includes('dispute resolution') ||
-      area.includes('neighbourhood')
-    ) || originalQuestion.toLowerCase().includes('council') ||
-         originalQuestion.toLowerCase().includes('fence') ||
-         originalQuestion.toLowerCase().includes('boundary') ||
-         originalQuestion.toLowerCase().includes('dispute');
-    console.log(`🏛️ Council support needed: ${needsCouncilSupport}`);
-    if (needsCouncilSupport) {
+    // Map legal areas to appropriate authorities
+    const authorityMap = this.getAuthorityMap(jurisdiction);
+    
+    for (const area of legal_areas) {
+      const mappedAuthorities = authorityMap[area] || [];
+      for (const authorityConfig of mappedAuthorities) {
+        // Check if we already have this authority type
+        if (!authorityLinks.find(link => link.contact_type === authorityConfig.contact_type)) {
+          authorityLinks.push({
+            type: authorityConfig.type,
+            title: authorityConfig.title,
+            description: authorityConfig.description,
+            url: authorityConfig.url,
+            authority: authorityConfig.authority,
+            jurisdiction: jurisdiction.toUpperCase(),
+            contact_type: authorityConfig.contact_type,
+            phone: authorityConfig.phone,
+            email: authorityConfig.email,
+            chatbot: authorityConfig.chatbot
+          });
+        }
+      }
+    }
+    
+    // Add general local council support if no specific authority found and question relates to local matters
+    const hasLocalMatters = originalQuestion.toLowerCase().includes('council') ||
+                           originalQuestion.toLowerCase().includes('permit') ||
+                           originalQuestion.toLowerCase().includes('approval') ||
+                           originalQuestion.toLowerCase().includes('local') ||
+                           legal_areas.some(area => 
+                             area.includes('local government') || 
+                             area.includes('property') || 
+                             area.includes('development') || 
+                             area.includes('planning') ||
+                             area.includes('residential')
+                           );
+    
+    if (hasLocalMatters && !authorityLinks.find(link => link.contact_type === 'council')) {
+      console.log(`🏛️ Adding general council support`);
       authorityLinks.push({
         type: 'regulatory_authority',
-        title: `${jurisdiction} Council Services`,
-        description: `Contact ${jurisdiction} Council for permits and approvals`,
+        title: `Local Council Services`,
+        description: `Contact your local council for permits and approvals`,
         url: jurisdictionData.localCouncilUrl,
-        authority: `${jurisdiction} Council`,
+        authority: `Local Council`,
         jurisdiction: jurisdiction.toUpperCase(),
         contact_type: 'council',
         phone: jurisdictionData.localCouncilPhone,
@@ -930,7 +957,7 @@ class AustLIIDiscovery {
         foodAuthorityChatbot: 'https://www.health.qld.gov.au/contact-us/online-services',
         foodLicenceUrl: 'https://www.business.qld.gov.au/industries/hospitality-tourism-sport/hospitality-gaming/food-business/starting',
         developmentUrl: 'https://www.business.qld.gov.au/industries/building-construction-property/building-construction/approvals-permits',
-        localCouncilUrl: 'https://www.qld.gov.au/about/how-government-works/local-government',
+        localCouncilUrl: 'https://www.qld.gov.au/about/how-government-works/local-government/find-council',
         localCouncilPhone: '07 3006 6200',
         localCouncilEmail: 'info@councils.qld.gov.au',
         localCouncilChatbot: 'https://www.qld.gov.au/contact-us/online-services',
@@ -947,7 +974,7 @@ class AustLIIDiscovery {
         foodAuthorityChatbot: 'https://www.foodauthority.nsw.gov.au/contact-us',
         foodLicenceUrl: 'https://www.foodauthority.nsw.gov.au/retail/food-business-licensing',
         developmentUrl: 'https://www.planning.nsw.gov.au/development-applications',
-        localCouncilUrl: 'https://www.olg.nsw.gov.au/',
+        localCouncilUrl: 'https://www.olg.nsw.gov.au/find-my-council',
         localCouncilPhone: '02 4428 4100',
         localCouncilEmail: 'olg@olg.nsw.gov.au',
         localCouncilChatbot: 'https://www.service.nsw.gov.au/contact-us',
@@ -964,7 +991,7 @@ class AustLIIDiscovery {
         foodAuthorityChatbot: 'https://www.health.vic.gov.au/contact-us',
         foodLicenceUrl: 'https://www.business.vic.gov.au/licensing-and-registration/food-business-registration',
         developmentUrl: 'https://www.planning.vic.gov.au/permits-and-applications',
-        localCouncilUrl: 'https://www.localgovernment.vic.gov.au/',
+        localCouncilUrl: 'https://www.localgovernment.vic.gov.au/find-my-council',
         localCouncilPhone: '03 9094 0000',
         localCouncilEmail: 'info@mav.asn.au',
         localCouncilChatbot: 'https://www.vic.gov.au/contact-us',
@@ -976,6 +1003,110 @@ class AustLIIDiscovery {
     };
     
     return jurisdictionMap[jurisdiction] || jurisdictionMap['qld']; // Default to QLD
+  }
+
+  // Map legal areas to appropriate authorities based on taxonomy data
+  getAuthorityMap(jurisdiction) {
+    const jurisdictionData = this.getJurisdictionData(jurisdiction);
+    const authorityMap = {};
+    
+    // Build authority map from taxonomy
+    for (const [areaKey, areaData] of Object.entries(legalTaxonomy.legal_areas)) {
+      const areaName = areaKey.replace('_', ' ');
+      authorityMap[areaName] = [];
+      
+      for (const authorityType of areaData.authorities) {
+        const authorityConfig = this.getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, areaKey);
+        if (authorityConfig) {
+          authorityMap[areaName].push(authorityConfig);
+        }
+      }
+    }
+    
+    return authorityMap;
+  }
+  
+  // Get configuration for a specific authority type using data-driven approach
+  getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, legalArea = null) {
+    const authorityInfo = legalTaxonomy.authority_types[authorityType];
+    if (!authorityInfo) return null;
+    
+    switch (authorityType) {
+      case 'dispute_resolution': {
+        const jurisdictionAuth = legalTaxonomy.jurisdiction_authorities[jurisdiction]?.dispute_resolution;
+        return {
+          type: 'dispute_resolution',
+          title: jurisdictionAuth?.title || 'Dispute Resolution Service',
+          description: authorityInfo.description,
+          url: jurisdictionAuth?.url,
+          authority: jurisdictionAuth?.title || 'Dispute Resolution Service',
+          contact_type: authorityInfo.contact_type,
+          phone: jurisdictionAuth?.phone,
+          email: jurisdictionAuth?.email
+        };
+      }
+      case 'legislation': {
+        if (legalArea) {
+          const legislationData = legalTaxonomy.jurisdiction_legislation[jurisdiction]?.[legalArea];
+          if (legislationData) {
+            return {
+              type: 'legislation',
+              title: legislationData.title,
+              description: `${legislationData.title} - ${authorityInfo.description}`,
+              url: legislationData.url,
+              authority: legislationData.title,
+              contact_type: authorityInfo.contact_type
+            };
+          }
+        }
+        return {
+          type: 'legislation',
+          title: 'Relevant Legislation',
+          description: authorityInfo.description,
+          url: null,
+          authority: 'Relevant Legislation',
+          contact_type: authorityInfo.contact_type
+        };
+      }
+      case 'food_safety':
+        return {
+          type: 'regulatory_authority',
+          title: jurisdictionData.foodAuthority,
+          description: authorityInfo.description,
+          url: jurisdictionData.foodAuthorityUrl,
+          authority: jurisdictionData.foodAuthority,
+          contact_type: authorityInfo.contact_type,
+          phone: jurisdictionData.foodAuthorityPhone,
+          email: jurisdictionData.foodAuthorityEmail,
+          chatbot: jurisdictionData.foodAuthorityChatbot
+        };
+      case 'business_support':
+        return {
+          type: 'regulatory_authority',
+          title: 'Business Support Services',
+          description: authorityInfo.description,
+          url: jurisdictionData.businessSupportUrl,
+          authority: 'Business Support',
+          contact_type: authorityInfo.contact_type,
+          phone: jurisdictionData.businessSupportPhone,
+          email: jurisdictionData.businessSupportEmail,
+          chatbot: jurisdictionData.businessSupportChatbot
+        };
+      case 'council':
+        return {
+          type: 'regulatory_authority',
+          title: 'Local Council Services',
+          description: authorityInfo.description,
+          url: jurisdictionData.localCouncilUrl,
+          authority: 'Local Council',
+          contact_type: authorityInfo.contact_type,
+          phone: jurisdictionData.localCouncilPhone,
+          email: jurisdictionData.localCouncilEmail,
+          chatbot: jurisdictionData.localCouncilChatbot
+        };
+      default:
+        return null;
+    }
   }
   
   // Extract document title from URL
@@ -1219,7 +1350,11 @@ class AustLIIDiscovery {
       const isRelevant = responseText.includes(authorityName.split(' ')[0]) ||
                         (responseText.includes('council') && authorityLink.contact_type === 'council') ||
                         (responseText.includes('business') && authorityLink.contact_type === 'business_support') ||
-                        (responseText.includes('food') && authorityLink.contact_type === 'food_safety');
+                        (responseText.includes('food') && authorityLink.contact_type === 'food_safety') ||
+                        (responseText.includes('dispute') && authorityLink.contact_type === 'dispute_resolution') ||
+                        (responseText.includes('legislation') && authorityLink.contact_type === 'legislation') ||
+                        authorityLink.type === 'legislation' || // Always include legislation links when generated
+                        authorityLink.type === 'dispute_resolution'; // Always include dispute resolution links when generated
       
       console.log(`📊 Authority relevance check: ${authorityLink.authority} (${authorityLink.contact_type}) - Relevant: ${isRelevant}`);
       
@@ -2103,18 +2238,55 @@ Analyze and respond with only the XML:`;
       else if (loc.includes('vic') || loc.includes('melbourne')) jurisdiction = 'vic';
     }
 
-    // Basic keyword extraction
+    // Data-driven legal area classification using taxonomy
+    const legal_areas = [];
     const keywords = [];
-    if (questionLower.includes('fence')) keywords.push('fence', 'boundary', 'dividing fence');
-    if (questionLower.includes('business')) keywords.push('business', 'corporation', 'company');
-    if (questionLower.includes('property')) keywords.push('property', 'land', 'real estate');
+    
+    // Check each legal area in taxonomy
+    for (const [areaKey, areaData] of Object.entries(legalTaxonomy.legal_areas)) {
+      let matches = false;
+      
+      // Check simple keyword matches
+      for (const keyword of areaData.keywords) {
+        if (questionLower.includes(keyword.toLowerCase())) {
+          matches = true;
+          break;
+        }
+      }
+      
+      // Check regex patterns
+      if (!matches && areaData.patterns) {
+        for (const pattern of areaData.patterns) {
+          try {
+            const regex = new RegExp(pattern, 'i');
+            if (regex.test(question)) {
+              matches = true;
+              break;
+            }
+          } catch (e) {
+            // Skip invalid regex patterns
+          }
+        }
+      }
+      
+      if (matches) {
+        legal_areas.push(areaKey.replace('_', ' '));
+        keywords.push(...areaData.keywords);
+      }
+    }
+    
+    // Default to general law if no specific area found
+    if (legal_areas.length === 0) {
+      legal_areas.push('general law');
+      keywords.push('law', 'legal');
+    }
 
     return {
       jurisdiction,
-      legal_areas: ['general law'],
-      keywords: keywords.length > 0 ? keywords : ['law'],
+      legal_areas,
+      keywords: [...new Set(keywords)], // Remove duplicates
       document_types: ['act', 'regulation'],
-      alternative_terms: keywords.length > 0 ? keywords : ['legal']
+      alternative_terms: [...new Set(keywords)] // Remove duplicates
     };
   }
 
@@ -3386,6 +3558,11 @@ app.post('/api/legal/ask', async (req, res) => {
     });
     const englishResponse = await openaiClient.generateAnswer(processedQuestion, docContext, 'en-AU', potentialDeepLinks);
     eventTracker.addEvent('ai_generation_complete', 'English AI response generated successfully');
+    
+    // Parse markdown links in the English response
+    if (englishResponse && typeof englishResponse === 'object' && englishResponse.answer) {
+      englishResponse.answer = parseMarkdownLinks(englishResponse.answer);
+    }
 
     // Translate response back to user's language if needed
     let finalResponse = englishResponse;
@@ -3766,22 +3943,35 @@ async function translateResponse(englishResponse, toLanguage) {
     const translatedAnswer = result.choices?.[0]?.message?.content?.trim();
     console.log(`🔍 Response translated answer:`, translatedAnswer);
     
+    // Parse markdown links from the translated answer before returning
+    const finalAnswer = translatedAnswer || englishResponse.answer || englishResponse;
+    const parsedAnswer = parseMarkdownLinks(finalAnswer);
+    
     // Return the response in the same format as received
     if (typeof englishResponse === 'object') {
-      console.log(`🔍 Returning object format with translated answer`);
+      console.log(`🔍 Returning object format with parsed answer`);
       return {
         ...englishResponse,
-        answer: translatedAnswer || englishResponse.answer
+        answer: parsedAnswer
       };
     }
     
-    console.log(`🔍 Returning string format: ${translatedAnswer || englishResponse}`);
-    return translatedAnswer || englishResponse;
+    console.log(`🔍 Returning string format with parsed answer`);
+    return parsedAnswer;
     
   } catch (error) {
     console.error('Response translation failed:', error);
     return englishResponse; // Fallback to English
   }
+}
+
+// Parse markdown links and convert them to clean HTML links
+function parseMarkdownLinks(text) {
+  if (!text || typeof text !== 'string') return text;
+  
+  // Replace markdown links [text](url) with HTML links
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  return text.replace(markdownLinkRegex, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 // Detect language of the question using simple pattern matching

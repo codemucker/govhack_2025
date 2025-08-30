@@ -1,5 +1,11 @@
 # Development Agents Guide
 
+## Important
+
+- ALWAYS generate answers based on DATA, DO NOT HARDCODE VALUES
+- FOCUS on the specific issue to fix, do not rewrite unrelated ares of code unless asked to
+- ALWAYS run an end to end check before announcing completion
+
 ## LegalEase - AI-Powered Regulatory Navigation Platform
 
 > **GovHack 2025 Project** - Team Democracy Sausage  
