@@ -65,12 +65,12 @@ echo "====================================="
 echo ""
 echo "🌐 OPEN IN BROWSER:"
 echo -e "   ${GREEN}📊 Frontend (Dev):      http://localhost:3000${NC}"
-echo -e "   ${BLUE}🔧 Backend API:         http://localhost:4000${NC}"
+echo -e "   ${BLUE}🔧 Backend API:         http://localhost:4003${NC}"
 echo ""
 echo "🔧 API ENDPOINTS:"
-echo "   📋 Health Check:       http://localhost:4000/api/hello"
-echo "   🤖 Legal Query API:    http://localhost:4000/api/legal/ask"
-echo "   📄 Database Stats:     http://localhost:4000/api/cache-documents"
+echo "   📋 Health Check:       http://localhost:4003/api/hello"
+echo "   🤖 Legal Query API:    http://localhost:4003/api/legal/ask"
+echo "   📄 Database Stats:     http://localhost:4003/api/cache-documents"
 echo ""
 echo "📝 LOGS:"
 echo "   Backend:              tail -f logs/server.log"
@@ -81,7 +81,7 @@ echo ""
 
 # 5. Test endpoints
 print_info "Testing backend endpoint..."
-if curl -s http://localhost:4000/api/hello > /dev/null; then
+if curl -s http://localhost:4003/api/hello > /dev/null; then
     print_status "Backend API responding"
 else
     print_warning "Backend API not responding yet"
@@ -90,7 +90,7 @@ fi
 print_status "Development environment started!"
 echo ""
 echo -e "${GREEN}🌐 Main App: http://localhost:3000 (Frontend Dev Server)${NC}"
-echo -e "${BLUE}🔧 API: http://localhost:4000 (Backend)${NC}"
+echo -e "${BLUE}🔧 API: http://localhost:4003 (Backend)${NC}"
 echo ""
 
 # Optional: Show logs

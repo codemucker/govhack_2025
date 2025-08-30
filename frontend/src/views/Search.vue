@@ -298,13 +298,35 @@ const handleProgressEvent = (event: QueryEvent) => {
       currentStep.value = step.message
     }
     
-    // Update current step message based on event
-    if (event.type === 'document_search' || event.type === 'document_ingestion') {
-      currentStep.value = event.message || 'Searching legal documents...'
-    } else if (event.type === 'ai_response_start') {
-      currentStep.value = 'Analyzing legal requirements...'
-    } else if (event.type === 'llm_analysis_start') {
-      currentStep.value = 'Discovering relevant documents...'
+    // Update current step message based on event with detailed descriptions
+    const progressMessages: Record<string, string> = {
+      'query_received': 'Processing your question...',
+      'language_detection': 'Detecting language and locale...',
+      'relevance_check_start': 'Checking question relevance...',
+      'question_converted': 'Converting to legal question format...',
+      'relevance_check_complete': 'Question relevance confirmed',
+      'location_extraction_start': 'Extracting location information...',
+      'location_extraction_complete': 'Location identified',
+      'clarification_check_start': 'Checking if more details needed...',
+      'clarification_check_complete': 'Clarification check complete',
+      'document_search_init': 'Initializing legal document search...',
+      'document_search': event.message || 'Searching Australian legal databases...',
+      'cache_miss': 'No cached results - discovering new documents...',
+      'llm_analysis_start': 'Analyzing search requirements with AI...',
+      'llm_analysis_complete': 'Search analysis complete',
+      'document_ingestion': 'Ingesting government documents...',
+      'discovery_success': 'Legal documents discovered successfully',
+      'context_preparation': 'Preparing legal context from documents...',
+      'ai_generation_start': 'Generating comprehensive legal response...',
+      'ai_generation_complete': 'Legal analysis complete',
+      'response_preparation': 'Finalizing response with sources...',
+      'response_translation_start': 'Translating response...',
+      'query_completed': 'Complete! Preparing results...'
+    }
+    
+    const message = progressMessages[event.type]
+    if (message) {
+      currentStep.value = message
     }
   }
 }

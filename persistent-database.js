@@ -45,6 +45,26 @@ export class PersistentDatabase {
   }
 
   async createTables() {
+    // Authorities table for contact information
+    await this.runQuery(`
+      CREATE TABLE IF NOT EXISTS authorities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        official_name TEXT,
+        jurisdiction TEXT,
+        jurisdiction_level TEXT, -- federal, state, council
+        website TEXT,
+        contact_phone TEXT,
+        contact_email TEXT,
+        contact_chatbot TEXT,
+        contact_hours TEXT,
+        postal_address TEXT,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(name, jurisdiction)
+      )
+    `);
+
     // Documents table
     await this.runQuery(`
       CREATE TABLE IF NOT EXISTS documents (
@@ -357,6 +377,66 @@ export class PersistentDatabase {
     }
 
     console.log('🧹 Database and cache cleared');
+  }
+
+  // Authority management methods
+  async saveAuthority(authorityData) {
+    const {
+      name,
+      official_name,
+      jurisdiction,
+      jurisdiction_level,
+      website,
+      contact_phone,
+      contact_email,
+      contact_chatbot,
+      contact_hours,
+      postal_address
+    } = authorityData;
+
+    await this.runQuery(`
+      INSERT OR REPLACE INTO authorities (
+        name, official_name, jurisdiction, jurisdiction_level, website,
+        contact_phone, contact_email, contact_chatbot, contact_hours, postal_address,
+        last_updated
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `, [
+      name, official_name, jurisdiction, jurisdiction_level, website,
+      contact_phone, contact_email, contact_chatbot, contact_hours, postal_address
+    ]);
+  }
+
+  async getAuthority(name, jurisdiction = null) {
+    let query = 'SELECT * FROM authorities WHERE name = ?';
+    let params = [name];
+    
+    if (jurisdiction) {
+      query += ' AND jurisdiction = ?';
+      params.push(jurisdiction);
+    }
+    
+    query += ' ORDER BY last_updated DESC LIMIT 1';
+    
+    return await this.getQuery(query, params);
+  }
+
+  async findAuthorities(searchTerm) {
+    const rows = await this.allQuery(`
+      SELECT * FROM authorities 
+      WHERE name LIKE ? OR official_name LIKE ? OR jurisdiction LIKE ?
+      ORDER BY name ASC
+    `, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
+    
+    return rows;
+  }
+
+  async getAllAuthorities() {
+    return await this.allQuery('SELECT * FROM authorities ORDER BY name ASC');
+  }
+
+  async getAuthorityCount() {
+    const row = await this.getQuery('SELECT COUNT(*) as count FROM authorities');
+    return row ? row.count : 0;
   }
 
   // Graceful shutdown

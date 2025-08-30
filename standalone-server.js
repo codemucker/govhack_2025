@@ -16,6 +16,8 @@ import { BackgroundIntelligenceService, IntelligentFailureHandler } from './back
 import { RealtimeDocumentIngester } from './realtime-document-ingester.js';
 import { PermitSiteIngester } from './permit-site-ingester.js';
 import { locationMapper } from './location-mapper.js';
+import { AuthoritySeeder } from './authority-seeder.js';
+import { ContactLookupService } from './contact-lookup-service.js';
 
 // Load environment variables
 dotenv.config();
@@ -368,6 +370,22 @@ async function initializeDatabase() {
     } else {
       console.log('✅ Database already well-seeded, skipping automatic seeding');
     }
+    
+    // Seed authorities database
+    const authoritiesCount = await db.getAuthorityCount();
+    console.log(`📋 Authorities database: ${authoritiesCount} authorities`);
+    
+    if (authoritiesCount === 0) {
+      console.log('🏛️ Seeding authorities database...');
+      const authoritySeeder = new AuthoritySeeder(db);
+      await authoritySeeder.seedAuthorities();
+    } else {
+      console.log('✅ Authorities database already seeded');
+    }
+    
+    // Initialize Contact Lookup Service
+    contactLookupService = new ContactLookupService(db);
+    console.log('📞 Contact lookup service initialized');
     
     // Initialize Background Intelligence Services after seeding
     // Temporarily disabled to prevent server crashes
@@ -798,7 +816,7 @@ class AustLIIDiscovery {
         title: 'Development Application',
         description: 'Submit development application to local council',
         url: jurisdictionData.developmentUrl,
-        authority: 'Local Council',
+        authority: `${jurisdiction} Council`,
         jurisdiction: jurisdiction.toUpperCase(),
         application_type: 'development_approval'
       });
@@ -858,12 +876,12 @@ class AustLIIDiscovery {
     // Local council
     authorityLinks.push({
       type: 'regulatory_authority',
-      title: 'Local Council Services',
-      description: 'Contact your local council for permits and approvals',
+      title: `${jurisdiction} Council Services`,
+      description: `Contact ${jurisdiction} Council for permits and approvals`,
       url: jurisdictionData.localCouncilUrl,
-      authority: 'Local Council',
+      authority: `${jurisdiction} Council`,
       jurisdiction: jurisdiction.toUpperCase(),
-      contact_type: 'local_government',
+      contact_type: 'council',
       phone: jurisdictionData.localCouncilPhone,
       email: jurisdictionData.localCouncilEmail,
       chatbot: jurisdictionData.localCouncilChatbot
@@ -1717,10 +1735,10 @@ RELEVANT questions include:
 - Consumer rights, warranties, refunds
 - Tenancy laws, rental rights, bonds
 - Neighbour disputes, property boundaries
-- Council regulations, local government rules
+- Council regulations, specific municipal authority rules
 - Employment law, workplace rights
 - Food safety, health regulations
-- Any Australian federal, state, or local government law
+- Any Australian federal, state, or municipal council law
 
 CANNOT BE CONVERTED (not relevant):
 - Pure general knowledge (e.g., "what is photosynthesis?")
@@ -2283,7 +2301,7 @@ INSTRUCTIONS:
 - Extract each permit/license/requirement as a separate <requirement> in the XML
 - Use the available links provided above in both the answer text and XML action links
 - Extract contact information from the legal documents and include it directly in each action step using attributes: contact_phone, contact_email, contact_website, contact_chatbot, contact_hours (only include if found in the documents)
-- Set jurisdiction_level to: federal, state, or local
+- Set jurisdiction_level to: federal, state, or specific council name (e.g. "Brisbane City Council", "Sydney City Council" - never use generic "local")
 - Set priority to: high, medium, or low based on importance
 - Always end the natural answer with the legal disclaimer
 
@@ -2343,7 +2361,7 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
       const fullResponse = data.choices[0].message.content;
       
       // Parse the structured response
-      const parsedResponse = this.parseStructuredResponse(fullResponse);
+      const parsedResponse = await this.parseStructuredResponse(fullResponse);
       
       return {
         answer: parsedResponse.answer,
@@ -2357,8 +2375,58 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
     }
   }
 
+  // Get specific council name based on location
+  getSpecificCouncilName(location) {
+    if (!location) return 'Council';
+    
+    const locationLower = location.toLowerCase();
+    
+    // Major city councils
+    if (locationLower.includes('sydney')) return 'City of Sydney';
+    if (locationLower.includes('melbourne')) return 'City of Melbourne';
+    if (locationLower.includes('brisbane')) return 'Brisbane City Council';
+    if (locationLower.includes('perth')) return 'City of Perth';
+    if (locationLower.includes('adelaide')) return 'Adelaide City Council';
+    if (locationLower.includes('darwin')) return 'City of Darwin';
+    if (locationLower.includes('hobart')) return 'Hobart City Council';
+    if (locationLower.includes('gold coast')) return 'City of Gold Coast';
+    if (locationLower.includes('parramatta')) return 'City of Parramatta';
+    if (locationLower.includes('newcastle')) return 'City of Newcastle';
+    
+    // State-based fallbacks with generic council format
+    if (locationLower.includes('nsw') || locationLower.includes('new south wales')) {
+      return 'Local NSW Council (contact your specific council)';
+    }
+    if (locationLower.includes('vic') || locationLower.includes('victoria')) {
+      return 'Local Victorian Council (contact your specific council)';
+    }
+    if (locationLower.includes('qld') || locationLower.includes('queensland')) {
+      return 'Local Queensland Council (contact your specific council)';
+    }
+    if (locationLower.includes('wa') || locationLower.includes('western australia')) {
+      return 'Local WA Council (contact your specific council)';
+    }
+    if (locationLower.includes('sa') || locationLower.includes('south australia')) {
+      return 'Local SA Council (contact your specific council)';
+    }
+    if (locationLower.includes('tas') || locationLower.includes('tasmania')) {
+      return 'Local Tasmanian Council (contact your specific council)';
+    }
+    if (locationLower.includes('nt') || locationLower.includes('northern territory')) {
+      return 'Local NT Council (contact your specific council)';
+    }
+    
+    // Extract potential council name from location
+    const words = location.split(/[\s,]+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+      return `${words[0]} Council (verify with local authorities)`;
+    }
+    
+    return 'Local Council (contact your specific council)';
+  }
+
   // Parse structured response from LLM containing both natural answer and XML data
-  parseStructuredResponse(fullResponse) {
+  async parseStructuredResponse(fullResponse) {
     try {
       // Extract the answer section
       const answerMatch = fullResponse.match(/\*\*ANSWER:\*\*\s*([\s\S]*?)(?:\*\*STRUCTURED_DATA:\*\*|$)/i);
@@ -2371,6 +2439,18 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
       if (structuredMatch) {
         const xmlContent = structuredMatch[1].trim();
         structuredData = this.parseXMLRequirements(xmlContent);
+        
+        // Enrich structured data with contact information
+        if (structuredData && contactLookupService) {
+          for (const requirement of structuredData) {
+            if (requirement.actions) {
+              requirement.actions = await contactLookupService.enrichActionsWithContacts(
+                requirement.actions, 
+                requirement.jurisdiction_level
+              );
+            }
+          }
+        }
       }
 
       return {
@@ -2576,6 +2656,9 @@ const permitIngester = new PermitSiteIngester(db, documentFetcher);
 // Background Intelligence Services (initialized after startup)
 let backgroundIntelligence = null;
 let failureHandler = null;
+
+// Contact lookup service (initialized after startup)
+let contactLookupService = null;
 
 // Note: No more hardcoded sample documents - all documents are discovered dynamically based on user queries
 
