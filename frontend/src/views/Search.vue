@@ -42,6 +42,41 @@
         @submit="performSearch" 
       />
 
+      <!-- Progress Indicator -->
+      <div v-if="loading && progressSteps.length > 0" class="progress-indicator">
+        <div class="progress-header">
+          <h3>🔍 Processing Your Query</h3>
+          <p class="current-step">{{ currentStep || 'Starting analysis...' }}</p>
+        </div>
+        
+        <div class="progress-steps">
+          <div 
+            v-for="(step, index) in progressSteps" 
+            :key="step.step"
+            class="progress-step"
+            :class="{ completed: step.completed, active: !step.completed && index === 0 }"
+          >
+            <div class="step-indicator">
+              <div class="step-number" v-if="!step.completed">{{ index + 1 }}</div>
+              <div class="step-checkmark" v-else>✓</div>
+            </div>
+            <div class="step-content">
+              <div class="step-message">{{ step.message }}</div>
+              <div v-if="step.timestamp" class="step-time">
+                {{ new Date(step.timestamp).toLocaleTimeString() }}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: `${(progressSteps.filter(s => s.completed).length / progressSteps.length) * 100}%` }"
+          ></div>
+        </div>
+      </div>
+
       <SearchResults 
         v-if="result" 
         :result="result"
@@ -205,6 +240,11 @@ const loading = ref(false)
 const result = ref<TriageResponse | null>(null)
 const error = ref('')
 
+// Progress tracking state
+const progressSteps = ref<Array<{step: string, message: string, completed: boolean, timestamp?: number}>>([])
+const currentStep = ref('')
+const queryId = ref('')
+
 // Clarification state
 const showClarification = ref(false)
 const clarificationQuestions = ref<string[]>([])
@@ -244,6 +284,64 @@ const exportData = ref<ExportData>({
 const printData = ref<ExportData | null>(null)
 const printViewRef = ref()
 
+
+/**
+ * Initialize progress tracking for a new query
+ */
+const initializeProgress = () => {
+  progressSteps.value = [
+    { step: 'query_received', message: 'Processing your question...', completed: false },
+    { step: 'language_detection', message: 'Detecting language...', completed: false },
+    { step: 'relevance_check', message: 'Checking question relevance...', completed: false },
+    { step: 'location_extraction', message: 'Identifying location...', completed: false },
+    { step: 'clarification_check', message: 'Analyzing question clarity...', completed: false },
+    { step: 'document_search', message: 'Searching legal documents...', completed: false },
+    { step: 'ai_analysis', message: 'Analyzing legal requirements...', completed: false },
+    { step: 'response_generation', message: 'Generating response...', completed: false }
+  ]
+  currentStep.value = ''
+}
+
+/**
+ * Handle progress events from WebSocket
+ */
+const handleProgressEvent = (event: QueryEvent) => {
+  const eventTypeMap: Record<string, string> = {
+    'query_received': 'query_received',
+    'language_detection': 'language_detection', 
+    'relevance_check_complete': 'relevance_check',
+    'location_extraction_complete': 'location_extraction',
+    'location_parsed': 'location_extraction',
+    'clarification_check_complete': 'clarification_check',
+    'clarification_bypassed': 'clarification_check',
+    'document_search_init': 'document_search',
+    'document_search': 'document_search',
+    'llm_analysis_complete': 'document_search',
+    'ai_response_start': 'ai_analysis',
+    'ai_analysis_complete': 'ai_analysis',
+    'response_translation_start': 'response_generation',
+    'query_completed': 'response_generation'
+  }
+  
+  const progressStep = eventTypeMap[event.type]
+  if (progressStep) {
+    const step = progressSteps.value.find(s => s.step === progressStep)
+    if (step && !step.completed) {
+      step.completed = true
+      step.timestamp = event.timestamp
+      currentStep.value = step.message
+    }
+    
+    // Update current step message based on event
+    if (event.type === 'document_search' || event.type === 'document_ingestion') {
+      currentStep.value = event.message || 'Searching legal documents...'
+    } else if (event.type === 'ai_response_start') {
+      currentStep.value = 'Analyzing legal requirements...'
+    } else if (event.type === 'llm_analysis_start') {
+      currentStep.value = 'Discovering relevant documents...'
+    }
+  }
+}
 
 /**
  * Convert AskQuestionResponse to TriageResponse format for compatibility
@@ -508,6 +606,9 @@ const performSearch = async (data: { query: string; address: string }) => {
   result.value = null
   showClarification.value = false
   
+  // Initialize progress tracking
+  initializeProgress()
+  
   try {
     // Use detected location if address field is empty
     const finalAddress = data.address || autoDetectedLocation.value
@@ -517,6 +618,10 @@ const performSearch = async (data: { query: string; address: string }) => {
       userLocale: userLocale.value || 'en-AU',
       context: {
         location: finalAddress || undefined
+      },
+      onEvent: (event) => {
+        queryId.value = event.queryId
+        handleProgressEvent(event)
       }
     })
     
@@ -543,11 +648,59 @@ const performSearch = async (data: { query: string; address: string }) => {
 
 /**
  * Perform search without clarification check (for when user dismisses clarification)
+ * 🚨 CRITICAL: This function MUST use bypassClarification: true to prevent infinite clarification loops!
+ * 🚨 DO NOT REMOVE THE bypassClarification FLAG - it prevents the same clarification popup from appearing repeatedly
+ * 🚨 This is the solution to prevent clarification popups showing again and again
  */
 const performSearchWithoutClarification = async (data: { query: string; address: string }) => {
-  // Implementation would include a flag to bypass clarification
-  // For now, we'll just call regular search
-  await performSearch(data)
+  if (!data.query.trim()) return
+  
+  loading.value = true
+  error.value = ''
+  result.value = null
+  showClarification.value = false
+  
+  // Initialize progress tracking
+  initializeProgress()
+  
+  try {
+    // Use detected location if address field is empty
+    const finalAddress = data.address || autoDetectedLocation.value
+    
+    // 🚨 CRITICAL: bypassClarification: true prevents repeated clarification popups!
+    const response = await apiClient.askLegalQuestion({
+      question: data.query,
+      userLocale: userLocale.value || 'en-AU',
+      context: {
+        location: finalAddress || undefined
+      },
+      bypassClarification: true, // 🚨 THIS IS ESSENTIAL - DO NOT REMOVE!
+      onEvent: (event) => {
+        queryId.value = event.queryId
+        handleProgressEvent(event)
+      }
+    })
+    
+    if (response.success) {
+      if (response.answer) {
+        // Convert response and show results
+        result.value = convertToTriageResponse(response, data.query, finalAddress)
+      } else {
+        error.value = 'No answer received from the service'
+      }
+    } else {
+      error.value = response.error || 'An error occurred while processing your request'
+    }
+    
+  } catch (err) {
+    console.error('Search error:', err)
+    error.value = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`
+  } finally {
+    loading.value = false
+    // Mark all progress steps as completed
+    progressSteps.value.forEach(step => { step.completed = true })
+    currentStep.value = 'Complete'
+  }
 }
 
 /**
@@ -999,6 +1152,187 @@ onMounted(() => {
   
   .detail-tags {
     justify-content: center;
+  }
+}
+
+/* Progress Indicator Styles */
+.progress-indicator {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.progress-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.progress-header h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.current-step {
+  margin: 0.5rem 0 0 0;
+  color: #059669;
+  font-weight: 500;
+  font-size: 0.95rem;
+  animation: pulse 2s infinite;
+}
+
+.progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  opacity: 0.6;
+}
+
+.progress-step.completed {
+  opacity: 1;
+  background: #f0fdf4;
+  border-left: 4px solid #059669;
+}
+
+.progress-step.active {
+  opacity: 1;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+}
+
+.step-indicator {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.step-number {
+  background: #e2e8f0;
+  color: #64748b;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.step-checkmark {
+  background: #059669;
+  color: white;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-message {
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.step-time {
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.progress-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #059669, #34d399);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Responsive Progress Indicator */
+@media (max-width: 768px) {
+  .progress-indicator {
+    margin: 1rem 0;
+    padding: 1rem;
+  }
+  
+  .progress-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .progress-steps {
+    gap: 0.5rem;
+  }
+  
+  .progress-step {
+    padding: 0.5rem;
+  }
+  
+  .step-indicator {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  
+  .step-message {
+    font-size: 0.85rem;
   }
 }
 </style>

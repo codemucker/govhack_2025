@@ -148,6 +148,33 @@ export class DocumentSeeder {
           tags: ['food', 'business', 'license', 'safety', 'health'],
           jurisdiction: 'Queensland',
           document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/reala2017247/',
+          title: 'Renewable Energy (Electricity) Act 2000 (QLD)',
+          description: 'Queensland renewable energy regulations including solar installations',
+          priority: 7,
+          tags: ['solar', 'renewable energy', 'electricity', 'solar panels', 'solar installation', 'energy', 'environment', 'sustainability'],
+          jurisdiction: 'Queensland',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/eesa2019293/',
+          title: 'Environmental Effects Act 2019 (QLD)',
+          description: 'Queensland environmental requirements for development including renewable energy installations',
+          priority: 6,
+          tags: ['environment', 'solar', 'renewable energy', 'environmental impact', 'planning', 'development', 'solar installation'],
+          jurisdiction: 'Queensland',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/br2006291/',
+          title: 'Building Regulation 2006 (QLD)',
+          description: 'Queensland building requirements including solar panel and renewable energy installations',
+          priority: 7,
+          tags: ['building', 'solar panels', 'solar installation', 'renewable energy', 'construction', 'permits', 'approval', 'regulations'],
+          jurisdiction: 'Queensland',
+          document_type: 'regulation'
         }
       ],
 

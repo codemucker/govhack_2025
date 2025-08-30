@@ -15,9 +15,104 @@ import { DocumentSeeder } from './document-seeder.js';
 import { BackgroundIntelligenceService, IntelligentFailureHandler } from './background-intelligence.js';
 import { RealtimeDocumentIngester } from './realtime-document-ingester.js';
 import { PermitSiteIngester } from './permit-site-ingester.js';
+import { locationMapper } from './location-mapper.js';
 
 // Load environment variables
 dotenv.config();
+
+// Robust JSON Parser - handles malformed LLM responses
+class RobustJSONParser {
+  static parse(content, fallback = {}) {
+    if (!content || typeof content !== 'string') {
+      return fallback;
+    }
+
+    // Multi-stage cleaning strategies
+    const cleaningStrategies = [
+      // 1. Remove markdown code blocks
+      s => s.replace(/```json\n?/g, '').replace(/\n?```/g, '').trim(),
+      
+      // 2. Fix smart quotes and unicode issues
+      s => s.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'"),
+      
+      // 3. Remove trailing commas
+      s => s.replace(/,(\s*[}\]])/g, '$1'),
+      
+      // 4. Fix common JSON issues
+      s => s.replace(/([{,]\s*)(\w+):/g, '$1"$2":'), // Add quotes to unquoted keys
+      
+      // 5. Extract first JSON object if embedded in text
+      s => {
+        const match = s.match(/\{[\s\S]*?\}/);
+        return match ? match[0] : s;
+      },
+      
+      // 6. Try to extract JSON from between markers
+      s => {
+        const jsonStart = s.indexOf('{');
+        const jsonEnd = s.lastIndexOf('}');
+        return jsonStart >= 0 && jsonEnd > jsonStart ? s.slice(jsonStart, jsonEnd + 1) : s;
+      }
+    ];
+
+    // Try each cleaning strategy
+    for (const strategy of cleaningStrategies) {
+      try {
+        const cleaned = strategy(content);
+        const parsed = JSON.parse(cleaned);
+        return parsed;
+      } catch (e) {
+        continue; // Try next strategy
+      }
+    }
+
+    // Fallback: Extract key-value pairs with regex
+    try {
+      return this.extractKeyValuePairs(content, fallback);
+    } catch (e) {
+      console.warn('All JSON parsing strategies failed, using fallback:', e.message);
+      return fallback;
+    }
+  }
+
+  // Extract key-value pairs using regex as last resort
+  static extractKeyValuePairs(content, fallback = {}) {
+    const result = { ...fallback };
+    
+    // Common patterns to extract
+    const patterns = [
+      { key: 'jurisdiction', regex: /"jurisdiction":\s*"([^"]+)"/i },
+      { key: 'legal_areas', regex: /"legal_areas":\s*\[(.*?)\]/i, isArray: true },
+      { key: 'keywords', regex: /"keywords":\s*\[(.*?)\]/i, isArray: true },
+      { key: 'document_types', regex: /"document_types":\s*\[(.*?)\]/i, isArray: true },
+      { key: 'alternative_terms', regex: /"alternative_terms":\s*\[(.*?)\]/i, isArray: true },
+      { key: 'relevant', regex: /"relevant":\s*(true|false)/i, isBoolean: true },
+      { key: 'confidence', regex: /"confidence":\s*([\d.]+)/i, isNumber: true },
+      { key: 'needs_clarification', regex: /"needs_clarification":\s*(true|false)/i, isBoolean: true }
+    ];
+
+    for (const pattern of patterns) {
+      const match = content.match(pattern.regex);
+      if (match) {
+        if (pattern.isArray) {
+          // Extract array items
+          const items = match[1].match(/"([^"]+)"/g) || [];
+          result[pattern.key] = items.map(item => item.replace(/"/g, ''));
+        } else if (pattern.isBoolean) {
+          result[pattern.key] = match[1].toLowerCase() === 'true';
+        } else if (pattern.isNumber) {
+          result[pattern.key] = parseFloat(match[1]);
+        } else {
+          result[pattern.key] = match[1];
+        }
+      }
+    }
+
+    return result;
+  }
+}
+
+const robustJSONParse = RobustJSONParser.parse.bind(RobustJSONParser);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -208,12 +303,35 @@ class AustLIIDiscovery {
     const documents = [];
     
     try {
-      // Query database for existing documents matching jurisdiction and legal areas
+      // Map jurisdiction codes to full names for database lookup
+      const jurisdictionMapping = {
+        'qld': ['qld', 'queensland', 'Queensland'],
+        'nsw': ['nsw', 'new south wales', 'New South Wales'],
+        'vic': ['vic', 'victoria', 'Victoria'],
+        'wa': ['wa', 'western australia', 'Western Australia'],
+        'sa': ['sa', 'south australia', 'South Australia'],
+        'tas': ['tas', 'tasmania', 'Tasmania'],
+        'nt': ['nt', 'northern territory', 'Northern Territory'],
+        'act': ['act', 'australian capital territory', 'Australian Capital Territory']
+      };
+      
+      const jurisdictionVariants = jurisdictionMapping[jurisdiction?.toLowerCase()] || [jurisdiction];
+      const jurisdictionConditions = jurisdictionVariants.map(variant => 
+        `(url LIKE '%/${variant}/%' OR tags LIKE '%${variant}%' OR jurisdiction LIKE '%${variant}%')`
+      ).join(' OR ');
+      
+      // Include specific keywords alongside legal areas for better matching
+      const allSearchTerms = [...legal_areas];
+      if (keywords && keywords.length > 0) {
+        allSearchTerms.push(...keywords.slice(0, 10)); // Add top 10 keywords
+      }
+      
+      // Query database for existing documents matching jurisdiction and search terms
       const query = `
-        SELECT url, content, tags, created_at 
+        SELECT url, content, tags, jurisdiction, created_at 
         FROM documents 
-        WHERE (url LIKE '%/${jurisdiction}/%' OR tags LIKE '%${jurisdiction}%')
-        AND (${legal_areas.map(area => `tags LIKE '%${area}%' OR content LIKE '%${area}%'`).join(' OR ')})
+        WHERE (${jurisdictionConditions})
+        AND (${allSearchTerms.map(term => `tags LIKE '%${term}%' OR content LIKE '%${term}%'`).join(' OR ')})
         LIMIT 20
       `;
       
@@ -1423,9 +1541,12 @@ Respond with ONLY a JSON object:
       const content = data.choices[0].message.content.trim();
 
       try {
-        // Clean JSON response
-        const cleanContent = content.replace(/```json\n?/, '').replace(/\n?```/, '');
-        const result = JSON.parse(cleanContent);
+        // Use robust JSON parser for relevance assessment
+        const result = robustJSONParse(content, {
+          relevant: true,
+          confidence: 0.5,
+          reason: 'Relevance assessment completed'
+        });
         
         return {
           relevant: result.relevant || false,
@@ -1535,9 +1656,14 @@ Respond in JSON format:
       const content = data.choices[0].message.content;
       
       try {
-        // Clean the response - remove markdown code blocks if present
-        const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const analysis = JSON.parse(cleanContent);
+        // Use robust JSON parser for LLM analysis
+        const analysis = robustJSONParse(content, {
+          jurisdiction: location && location.toLowerCase().includes('qld') ? 'qld' : 'Australia',
+          legal_areas: ['general law'],
+          keywords: question.split(' ').filter(w => w.length > 2).slice(0, 5),
+          document_types: ['act', 'regulation'],
+          alternative_terms: []
+        });
         console.log(`🧠 LLM Analysis (attempt ${attempt}):`, analysis);
         return analysis;
       } catch (parseError) {
@@ -1682,7 +1808,14 @@ Return as JSON: {
 
       const data = await response.json();
       const result = data.choices[0]?.message?.content?.trim() || '';
-      return JSON.parse(result);
+      
+      // Use robust JSON parser instead of fragile JSON.parse
+      return robustJSONParse(result, {
+        primary_keywords: [question.split(' ').slice(0, 3).join(' ')],
+        database_related: [],
+        alternative_terms: [],
+        legal_areas: ['general']
+      });
       
     } catch (error) {
       console.error(`❌ Dynamic keyword generation failed: ${error.message}`);
@@ -2123,6 +2256,50 @@ app.get('/api/hello', (req, res) => {
   });
 });
 
+// Location search endpoint for autocomplete
+app.get('/api/location/search', (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query || query.length < 2) {
+      return res.json({ success: true, results: [] });
+    }
+    
+    const results = locationMapper.searchLocations(query, 10);
+    res.json({ 
+      success: true, 
+      results: results.map(location => ({
+        city: location.city,
+        state: location.state,
+        stateFullName: location.stateFullName,
+        council: location.council,
+        region: location.region,
+        displayName: location.displayName,
+        value: location.displayName // For form input value
+      }))
+    });
+  } catch (error) {
+    console.error('Location search error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to search locations' 
+    });
+  }
+});
+
+// Get all states endpoint
+app.get('/api/location/states', (req, res) => {
+  try {
+    const states = locationMapper.getAllStates();
+    res.json({ success: true, states });
+  } catch (error) {
+    console.error('Get states error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get states' 
+    });
+  }
+});
+
 // Database statistics endpoint (formerly cache-documents, now returns current database state)
 app.post('/api/cache-documents', async (req, res) => {
   try {
@@ -2501,13 +2678,34 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
-    // Extract location from question if not provided in context
+    // Extract and parse location information using location mapper
     let location = context?.location;
-    if (!location) {
+    let parsedLocation = null;
+    let jurisdiction = 'Australia';
+    
+    if (location) {
+      parsedLocation = locationMapper.parseLocationAdvanced(location);
+      if (parsedLocation) {
+        jurisdiction = parsedLocation.state || 'Australia';
+        eventTracker.addEvent('location_parsed', 'Location parsed using location mapper', { 
+          input_location: location,
+          parsed_location: parsedLocation,
+          jurisdiction: jurisdiction
+        });
+      }
+    } else {
       eventTracker.addEvent('location_extraction_start', 'Extracting location from question text');
-      location = await extractLocationFromQuestion(question);
+      location = await extractLocationFromQuestion(processedQuestion);
+      if (location) {
+        parsedLocation = locationMapper.parseLocationAdvanced(location);
+        if (parsedLocation) {
+          jurisdiction = parsedLocation.state || 'Australia';
+        }
+      }
       eventTracker.addEvent('location_extraction_complete', 'Location extraction complete', { 
         extracted_location: location,
+        parsed_location: parsedLocation,
+        jurisdiction: jurisdiction,
         source: 'question_analysis'
       });
     }
@@ -2537,9 +2735,13 @@ app.post('/api/legal/ask', async (req, res) => {
       eventTracker.addEvent('clarification_bypassed', 'Clarification check bypassed by user request');
     }
 
-    // Find relevant documents OR discover them on-the-fly
-    eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { location });
-    let relevantDocs = await documentFetcher.findOrDiscoverDocuments(processedQuestion, location, 3, eventTracker);
+    // Find relevant documents OR discover them on-the-fly using parsed jurisdiction
+    eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { 
+      location, 
+      jurisdiction,
+      parsed_location: parsedLocation 
+    });
+    let relevantDocs = await documentFetcher.findOrDiscoverDocuments(processedQuestion, jurisdiction, 3, eventTracker);
     
     // If no documents found, try intelligent failure handling
     if (relevantDocs.length === 0 && failureHandler) {
@@ -2656,7 +2858,7 @@ app.post('/api/legal/ask', async (req, res) => {
     // Extract actually used deep links from the AI response
     const deepLinks = documentFetcher.discovery ? 
       documentFetcher.discovery.extractUsedLinksFromResponse(
-        aiResponse.answer, 
+        finalResponse.answer || finalResponse, 
         potentialDeepLinks
       ) : [];
 
@@ -2664,12 +2866,12 @@ app.post('/api/legal/ask', async (req, res) => {
     await db.saveQuery({
       id: queryId,
       question,
-      answer: aiResponse.answer,
+      answer: finalResponse.answer || finalResponse,
       sources_used: sources.map(s => s.url),
       jurisdiction: location || 'Australia',
       confidence: 0.9,
       execution_time: Date.now() - startTime,
-      tokens_used: aiResponse.tokensUsed,
+      tokens_used: englishResponse.tokensUsed || null,
       relevant: true,
       events_count: eventTracker.getEvents().length
     });
@@ -2687,13 +2889,13 @@ app.post('/api/legal/ask', async (req, res) => {
     const finalResult = {
       success: true,
       answer: finalResponse.answer || finalResponse,
-      structured_data: finalResponse.structuredData || aiResponse.structuredData || null,
+      structured_data: finalResponse.structuredData || englishResponse.structuredData || null,
       sources,
       deep_links: deepLinks,
       confidence: 0.9,
       queryId,
       executionTime: Date.now() - startTime,
-      tokensUsed: aiResponse.tokensUsed || null,
+      tokensUsed: englishResponse.tokensUsed || null,
       events: eventTracker.getEvents()
     };
 
@@ -2779,7 +2981,7 @@ wss.on('connection', (ws) => {
   
   ws.on('message', (message) => {
     try {
-      const data = JSON.parse(message);
+      const data = robustJSONParse(message, {});
       
       if (data.type === 'subscribe' && data.queryId) {
         // Subscribe to query events
@@ -3005,12 +3207,20 @@ function detectQueryLanguage(question) {
 // Extract location information from user question using LLM
 async function extractLocationFromQuestion(question) {
   try {
+    // First try local location mapper (free fallback)
+    const localLocation = locationMapper.parseLocationAdvanced(question);
+    if (localLocation) {
+      console.log(`📍 Local location mapping found: ${localLocation.city}, ${localLocation.state.toUpperCase()}`);
+      return `${localLocation.city}, ${localLocation.state.toUpperCase()}`;
+    }
+    
+    // If no local match, try external LLM service (if configured)
     const isOpenRouter = process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY;
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1';
     
     if (!apiKey) {
-      console.warn('No API key available for location extraction');
+      console.warn('No API key available for external location extraction, using local database only');
       return null;
     }
     
@@ -3055,7 +3265,7 @@ Respond in this JSON format:
     
     if (content) {
       try {
-        const locationData = JSON.parse(content);
+        const locationData = robustJSONParse(content, {});
         if (locationData.location_found && locationData.city && locationData.state) {
           return `${locationData.city}, ${locationData.state}`;
         }
@@ -3067,6 +3277,16 @@ Respond in this JSON format:
     return null;
   } catch (error) {
     console.error('Error extracting location from question:', error);
+    // Final fallback: try local location mapper again with different parsing
+    try {
+      const fallbackLocation = locationMapper.parseLocationAdvanced(question);
+      if (fallbackLocation) {
+        console.log(`📍 Fallback location mapping found: ${fallbackLocation.city}, ${fallbackLocation.state.toUpperCase()}`);
+        return `${fallbackLocation.city}, ${fallbackLocation.state.toUpperCase()}`;
+      }
+    } catch (fallbackError) {
+      console.error('Fallback location extraction also failed:', fallbackError);
+    }
     return null;
   }
 }
@@ -3131,7 +3351,7 @@ Respond in this JSON format:
     
     if (content) {
       try {
-        const clarificationData = JSON.parse(content);
+        const clarificationData = robustJSONParse(content, {});
         return {
           needs_clarification: clarificationData.needs_clarification || false,
           reason: clarificationData.reason || '',
