@@ -165,6 +165,7 @@ type TriageResponse = {
     authority: string
     actions: Array<{
       step: number
+      title?: string
       desc: string
       link?: string
       contact_phone?: string
@@ -356,6 +357,7 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     authority: req.authority || 'Government Authority',
     actions: req.actions?.map(action => ({
       step: action.step,
+      title: action.title,
       desc: action.desc || action.text || '',
       link: action.link,
       contact_phone: action.contact_phone,

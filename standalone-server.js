@@ -2283,8 +2283,12 @@ REQUIRED FORMAT:
     <authority>Australian Securities and Investments Commission (ASIC)</authority>
     <description>Register your business and obtain an ABN</description>
     <actions>
-      <action step="1" link="[URL from document]" contact_phone="[phone from document]" contact_email="[email from document]" contact_website="[website from document]" contact_hours="[hours from document]">Action description</action>
-      <action step="2" link="[URL from document]" contact_chatbot="[chatbot from document]" contact_hours="[hours from document]">Action description</action>
+      <action step="1" title="Action Title" link="[URL from document]" contact_phone="[phone from document]" contact_email="[email from document]" contact_website="[website from document]" contact_hours="[hours from document]">
+        <description>Detailed description of what the user needs to do, including specific steps, requirements, and what to expect from this process.</description>
+      </action>
+      <action step="2" title="Second Action Title" link="[URL from document]" contact_chatbot="[chatbot from document]" contact_hours="[hours from document]">
+        <description>Comprehensive explanation of the second action, with clear guidance on procedures and requirements.</description>
+      </action>
     </actions>
     <notes>
       <note>Required before applying for local permits</note>
@@ -2490,8 +2494,8 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
         // Extract actions
         const actionMatches = content.match(/<action[^>]*>([\s\S]*?)<\/action>/g) || [];
         const actions = actionMatches.map((actionMatch, index) => {
-          const actionContent = actionMatch.match(/<action[^>]*>([\s\S]*?)<\/action>/)[1];
           const stepMatch = actionMatch.match(/step="(\d+)"/);
+          const titleMatch = actionMatch.match(/title="([^"]*)"/);
           const linkMatch = actionMatch.match(/link="([^"]*)"/);
           const contactPhoneMatch = actionMatch.match(/contact_phone="([^"]*)"/);
           const contactTypeMatch = actionMatch.match(/contact_type="([^"]*)"/);
@@ -2500,17 +2504,22 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
           const contactWebsiteMatch = actionMatch.match(/contact_website="([^"]*)"/);
           const contactHoursMatch = actionMatch.match(/contact_hours="([^"]*)"/);
           
-          // Clean up action content to remove any embedded XML tags
-          let cleanActionContent = actionContent.trim();
-          // Remove any opening action tag that might be included in the content
-          cleanActionContent = cleanActionContent.replace(/<action[^>]*>/g, '');
-          // Remove any closing action tag
-          cleanActionContent = cleanActionContent.replace(/<\/action>/g, '');
+          // Extract description from nested <description> tag or fallback to action content
+          let description = '';
+          const descriptionMatch = actionMatch.match(/<description>([\s\S]*?)<\/description>/);
+          if (descriptionMatch) {
+            description = descriptionMatch[1].trim();
+          } else {
+            // Fallback: extract content between action tags, cleaning up
+            const actionContent = actionMatch.match(/<action[^>]*>([\s\S]*?)<\/action>/)[1];
+            description = actionContent.replace(/<[^>]*>/g, '').trim();
+          }
           
           return {
             step: stepMatch ? parseInt(stepMatch[1]) : index + 1,
-            desc: cleanActionContent,
-            text: cleanActionContent, // Vue component uses both desc and text
+            title: titleMatch ? titleMatch[1] : `Step ${stepMatch ? stepMatch[1] : index + 1}`,
+            desc: description,
+            text: description, // Vue component uses both desc and text
             link: linkMatch ? linkMatch[1] : undefined,
             contact_phone: contactPhoneMatch ? contactPhoneMatch[1] : undefined,
             contact_type: contactTypeMatch ? contactTypeMatch[1] : undefined,

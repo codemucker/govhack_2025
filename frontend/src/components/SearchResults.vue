@@ -148,6 +148,7 @@
                 <div class="step-number">{{ action.step }}</div>
                 
                 <div class="action-content">
+                  <div v-if="action.title" class="step-title">{{ action.title }}</div>
                   <div class="step-description">{{ action.desc }}</div>
                   
                   <!-- Contact Information -->
@@ -765,9 +766,17 @@ const saveResults = () => {
   min-width: 0;
 }
 
-.step-description {
+.step-title {
   color: #1f2937;
+  font-weight: 600;
+  font-size: 1rem;
   margin-bottom: 0.5rem;
+}
+
+.step-description {
+  color: #4b5563;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
 }
 
 .step-contact {
