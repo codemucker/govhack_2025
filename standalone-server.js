@@ -349,9 +349,6 @@ const robustXMLParse = async (content, fallback = {}, options = {}) => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load legal taxonomy
-const legalTaxonomy = JSON.parse(readFileSync(join(__dirname, 'data', 'legal-taxonomy.json'), 'utf8'));
-
 // Initialize persistent database with disk caching
 const db = new PersistentDatabase();
 
@@ -359,6 +356,10 @@ const db = new PersistentDatabase();
 async function initializeDatabase() {
   try {
     await db.initialize();
+    
+    // Load and seed legal taxonomy from JSON file
+    const legalTaxonomy = JSON.parse(readFileSync(join(__dirname, 'data', 'legal-taxonomy.json'), 'utf8'));
+    await db.seedLegalTaxonomy(legalTaxonomy);
     
     const stats = await db.getStats();
     console.log(`📊 Database ready: ${stats.documents} documents, ${stats.queries} queries`);
@@ -739,7 +740,7 @@ class AustLIIDiscovery {
   }
 
   // Generate deep links to specific legal provisions and permits
-  generateDeepLinks(aiResponse, documents, jurisdiction, legal_areas, keywords) {
+  async generateDeepLinks(aiResponse, documents, jurisdiction, legal_areas, keywords) {
     const deepLinks = [];
     const response = aiResponse.toLowerCase();
     
@@ -786,7 +787,7 @@ class AustLIIDiscovery {
     deepLinks.push(...permitLinks);
     
     // Add regulatory authority links
-    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas, '');
+    const authorityLinks = await this.generateAuthorityLinks(jurisdiction, legal_areas, '');
     deepLinks.push(...authorityLinks);
     
     return deepLinks;
@@ -842,7 +843,7 @@ class AustLIIDiscovery {
   }
   
   // Generate regulatory authority contact links
-  generateAuthorityLinks(jurisdiction, legal_areas, originalQuestion = '') {
+  async generateAuthorityLinks(jurisdiction, legal_areas, originalQuestion = '') {
     const authorityLinks = [];
     const jurisdictionData = this.getJurisdictionData(jurisdiction);
     
@@ -891,7 +892,7 @@ class AustLIIDiscovery {
     }
     
     // Map legal areas to appropriate authorities
-    const authorityMap = this.getAuthorityMap(jurisdiction);
+    const authorityMap = await this.getAuthorityMap(jurisdiction);
     
     for (const area of legal_areas) {
       const mappedAuthorities = authorityMap[area] || [];
@@ -1006,17 +1007,18 @@ class AustLIIDiscovery {
   }
 
   // Map legal areas to appropriate authorities based on taxonomy data
-  getAuthorityMap(jurisdiction) {
+  async getAuthorityMap(jurisdiction) {
     const jurisdictionData = this.getJurisdictionData(jurisdiction);
     const authorityMap = {};
     
-    // Build authority map from taxonomy
+    // Build authority map from database taxonomy
+    const legalTaxonomy = await db.getLegalTaxonomy();
     for (const [areaKey, areaData] of Object.entries(legalTaxonomy.legal_areas)) {
       const areaName = areaKey.replace('_', ' ');
       authorityMap[areaName] = [];
       
       for (const authorityType of areaData.authorities) {
-        const authorityConfig = this.getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, areaKey);
+        const authorityConfig = await this.getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, areaKey);
         if (authorityConfig) {
           authorityMap[areaName].push(authorityConfig);
         }
@@ -1027,7 +1029,8 @@ class AustLIIDiscovery {
   }
   
   // Get configuration for a specific authority type using data-driven approach
-  getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, legalArea = null) {
+  async getAuthorityConfig(authorityType, jurisdictionData, jurisdiction, legalArea = null) {
+    const legalTaxonomy = await db.getLegalTaxonomy();
     const authorityInfo = legalTaxonomy.authority_types[authorityType];
     if (!authorityInfo) return null;
     
@@ -1283,7 +1286,7 @@ class AustLIIDiscovery {
   // All topic extraction and URL generation is now handled dynamically by LLM with database tags
 
   // Generate potential links based on question and documents (before AI response)
-  generatePotentialLinks(question, documents, jurisdiction, legal_areas, keywords) {
+  async generatePotentialLinks(question, documents, jurisdiction, legal_areas, keywords) {
     const potentialLinks = [];
     const lowerQuestion = question.toLowerCase();
     
@@ -1295,7 +1298,7 @@ class AustLIIDiscovery {
     
     // Generate authority contact links
     console.log('🔧 About to generate authority links...');
-    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas, question);
+    const authorityLinks = await this.generateAuthorityLinks(jurisdiction, legal_areas, question);
     console.log(`🔧 Generated ${authorityLinks.length} authority links`);
     potentialLinks.push(...authorityLinks);
     
@@ -2053,7 +2056,7 @@ Respond with only the XML:`;
   async analyzeQuery(question, location, attempt = 1, db = null) {
     if (!this.apiKey) {
       console.log('No API key found, using fallback analysis');
-      return this.createFallbackAnalysis(question, location);
+      return await this.createFallbackAnalysis(question, location);
     }
 
     // Generate keywords dynamically using database tags instead of hardcoded examples
@@ -2217,16 +2220,16 @@ Analyze and respond with only the XML:`;
       } catch (parseError) {
         console.error('Failed to parse LLM analysis:', content);
         // Fallback to basic analysis
-        return this.createFallbackAnalysis(question, location);
+        return await this.createFallbackAnalysis(question, location);
       }
 
     } catch (error) {
       console.error('Query analysis error:', error);
-      return this.createFallbackAnalysis(question, location);
+      return await this.createFallbackAnalysis(question, location);
     }
   }
 
-  createFallbackAnalysis(question, location) {
+  async createFallbackAnalysis(question, location) {
     const questionLower = question.toLowerCase();
     
     // Basic jurisdiction detection
@@ -2238,9 +2241,12 @@ Analyze and respond with only the XML:`;
       else if (loc.includes('vic') || loc.includes('melbourne')) jurisdiction = 'vic';
     }
 
-    // Data-driven legal area classification using taxonomy
+    // Data-driven legal area classification using database taxonomy
     const legal_areas = [];
     const keywords = [];
+    
+    // Get taxonomy from database
+    const legalTaxonomy = await db.getLegalTaxonomy();
     
     // Check each legal area in taxonomy
     for (const [areaKey, areaData] of Object.entries(legalTaxonomy.legal_areas)) {
@@ -3542,11 +3548,11 @@ app.post('/api/legal/ask', async (req, res) => {
     
     // Extract legal areas from the processed question using data-driven taxonomy
     const analysisResult = documentFetcher.discovery?.createFallbackAnalysis ? 
-      documentFetcher.discovery.createFallbackAnalysis(processedQuestion, jurisdiction) : 
+      await documentFetcher.discovery.createFallbackAnalysis(processedQuestion, jurisdiction) : 
       { legal_areas: ['general law'], keywords: ['law'] };
     
     const potentialDeepLinks = documentFetcher.discovery ? 
-      documentFetcher.discovery.generatePotentialLinks(
+      await documentFetcher.discovery.generatePotentialLinks(
         question,
         relevantDocs.slice(0, 3),
         extractedJurisdiction,

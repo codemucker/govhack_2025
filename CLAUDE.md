@@ -1,0 +1,1 @@
+- always test changes by running an end to end test befoe completion

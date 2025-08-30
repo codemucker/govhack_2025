@@ -99,12 +99,66 @@ export class PersistentDatabase {
       )
     `);
 
+    // Legal taxonomy tables
+    await this.runQuery(`
+      CREATE TABLE IF NOT EXISTS legal_areas (
+        id TEXT PRIMARY KEY,
+        keywords TEXT NOT NULL, -- JSON array
+        patterns TEXT NOT NULL, -- JSON array
+        authorities TEXT NOT NULL, -- JSON array
+        description TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runQuery(`
+      CREATE TABLE IF NOT EXISTS authority_types (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        contact_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await this.runQuery(`
+      CREATE TABLE IF NOT EXISTS jurisdiction_legislation (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jurisdiction TEXT NOT NULL,
+        legal_area TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(jurisdiction, legal_area)
+      )
+    `);
+
+    await this.runQuery(`
+      CREATE TABLE IF NOT EXISTS jurisdiction_authorities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jurisdiction TEXT NOT NULL,
+        authority_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT,
+        phone TEXT,
+        email TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(jurisdiction, authority_type)
+      )
+    `);
+
     // Create indexes for performance
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_documents_jurisdiction ON documents(jurisdiction)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(document_type)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_queries_created ON queries(created_at)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_queries_relevant ON queries(relevant)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_legal_areas_id ON legal_areas(id)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_authority_types_id ON authority_types(id)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_legislation_jurisdiction ON jurisdiction_legislation(jurisdiction)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_legislation_area ON jurisdiction_legislation(legal_area)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_authorities_jurisdiction ON jurisdiction_authorities(jurisdiction)`);
+    await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_authorities_type ON jurisdiction_authorities(authority_type)`);
   }
 
   // Helper method to run queries with promise interface
@@ -437,6 +491,151 @@ export class PersistentDatabase {
   async getAuthorityCount() {
     const row = await this.getQuery('SELECT COUNT(*) as count FROM authorities');
     return row ? row.count : 0;
+  }
+
+  // Legal taxonomy operations
+  async seedLegalTaxonomy(taxonomyData) {
+    // Clear existing data
+    await this.runQuery('DELETE FROM legal_areas');
+    await this.runQuery('DELETE FROM authority_types');
+    await this.runQuery('DELETE FROM jurisdiction_legislation');
+    await this.runQuery('DELETE FROM jurisdiction_authorities');
+
+    // Seed legal areas
+    for (const [areaId, areaData] of Object.entries(taxonomyData.legal_areas)) {
+      await this.runQuery(`
+        INSERT INTO legal_areas (id, keywords, patterns, authorities, description)
+        VALUES (?, ?, ?, ?, ?)
+      `, [
+        areaId,
+        JSON.stringify(areaData.keywords),
+        JSON.stringify(areaData.patterns),
+        JSON.stringify(areaData.authorities),
+        areaData.description
+      ]);
+    }
+
+    // Seed authority types
+    for (const [typeId, typeData] of Object.entries(taxonomyData.authority_types)) {
+      await this.runQuery(`
+        INSERT INTO authority_types (id, name, description, contact_type)
+        VALUES (?, ?, ?, ?)
+      `, [
+        typeId,
+        typeData.name,
+        typeData.description,
+        typeData.contact_type
+      ]);
+    }
+
+    // Seed jurisdiction legislation
+    for (const [jurisdiction, jurisdictionData] of Object.entries(taxonomyData.jurisdiction_legislation)) {
+      for (const [legalArea, legislationData] of Object.entries(jurisdictionData)) {
+        await this.runQuery(`
+          INSERT INTO jurisdiction_legislation (jurisdiction, legal_area, title, url)
+          VALUES (?, ?, ?, ?)
+        `, [
+          jurisdiction,
+          legalArea,
+          legislationData.title,
+          legislationData.url
+        ]);
+      }
+    }
+
+    // Seed jurisdiction authorities
+    for (const [jurisdiction, jurisdictionData] of Object.entries(taxonomyData.jurisdiction_authorities)) {
+      for (const [authorityType, authorityData] of Object.entries(jurisdictionData)) {
+        await this.runQuery(`
+          INSERT INTO jurisdiction_authorities (jurisdiction, authority_type, title, url, phone, email)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [
+          jurisdiction,
+          authorityType,
+          authorityData.title,
+          authorityData.url,
+          authorityData.phone,
+          authorityData.email
+        ]);
+      }
+    }
+
+    console.log('🏛️ Legal taxonomy data seeded to database');
+  }
+
+  async getLegalAreas() {
+    const rows = await this.allQuery('SELECT * FROM legal_areas');
+    const result = {};
+    for (const row of rows) {
+      result[row.id] = {
+        keywords: JSON.parse(row.keywords),
+        patterns: JSON.parse(row.patterns),
+        authorities: JSON.parse(row.authorities),
+        description: row.description
+      };
+    }
+    return result;
+  }
+
+  async getAuthorityTypes() {
+    const rows = await this.allQuery('SELECT * FROM authority_types');
+    const result = {};
+    for (const row of rows) {
+      result[row.id] = {
+        name: row.name,
+        description: row.description,
+        contact_type: row.contact_type
+      };
+    }
+    return result;
+  }
+
+  async getJurisdictionLegislation() {
+    const rows = await this.allQuery('SELECT * FROM jurisdiction_legislation');
+    const result = {};
+    for (const row of rows) {
+      if (!result[row.jurisdiction]) {
+        result[row.jurisdiction] = {};
+      }
+      result[row.jurisdiction][row.legal_area] = {
+        title: row.title,
+        url: row.url
+      };
+    }
+    return result;
+  }
+
+  async getJurisdictionAuthorities() {
+    const rows = await this.allQuery('SELECT * FROM jurisdiction_authorities');
+    const result = {};
+    for (const row of rows) {
+      if (!result[row.jurisdiction]) {
+        result[row.jurisdiction] = {};
+      }
+      result[row.jurisdiction][row.authority_type] = {
+        title: row.title,
+        url: row.url,
+        phone: row.phone,
+        email: row.email
+      };
+    }
+    return result;
+  }
+
+  async getLegalTaxonomy() {
+    const [legal_areas, authority_types, jurisdiction_legislation, jurisdiction_authorities] = await Promise.all([
+      this.getLegalAreas(),
+      this.getAuthorityTypes(),
+      this.getJurisdictionLegislation(),
+      this.getJurisdictionAuthorities()
+    ]);
+
+    return {
+      legal_areas,
+      authority_types,
+      jurisdiction_legislation,
+      jurisdiction_authorities
+    };
   }
 
   // Graceful shutdown

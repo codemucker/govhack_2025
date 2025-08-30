@@ -1,0 +1,156 @@
+{
+  "legal_areas": {
+    "property_disputes": {
+      "keywords": ["fence", "boundary", "dividing fence", "neighbour dispute", "neighbor dispute", "property line", "shared fence"],
+      "patterns": ["fence", "boundary", "dispute.*neighbour", "dispute.*neighbor", "dividing"],
+      "authorities": ["dispute_resolution", "legislation"],
+      "description": "Disputes between neighbours regarding property boundaries, fences, and related matters"
+    },
+    "neighbourhood_disputes": {
+      "keywords": ["neighbour", "neighbor", "noise", "tree", "parking", "access", "nuisance"],
+      "patterns": ["neighbour", "neighbor", "dispute.*residential", "noise.*complaint", "tree.*dispute"],
+      "authorities": ["dispute_resolution", "council"],
+      "description": "General disputes between neighbours including noise, trees, access rights"
+    },
+    "food_safety": {
+      "keywords": ["food", "restaurant", "cafe", "catering", "food business", "hygiene", "food handling"],
+      "patterns": ["food.*business", "restaurant", "cafe", "catering", "food.*safety", "food.*license"],
+      "authorities": ["food_safety"],
+      "description": "Food safety regulations, licensing, and compliance for food businesses"
+    },
+    "business_regulations": {
+      "keywords": ["business", "license", "permit", "corporation", "company", "commercial", "trade"],
+      "patterns": ["business.*license", "business.*permit", "commercial.*law", "company.*registration"],
+      "authorities": ["business_support"],
+      "description": "Business licensing, permits, and commercial regulations"
+    },
+    "property_law": {
+      "keywords": ["property", "land", "real estate", "development", "planning", "zoning"],
+      "patterns": ["property.*law", "real.*estate", "development.*application", "planning.*permit"],
+      "authorities": ["council", "planning"],
+      "description": "Property ownership, development, and planning matters"
+    },
+    "development_permits": {
+      "keywords": ["pool", "swimming pool", "deck", "shed", "extension", "renovation", "build", "construction", "permit", "approval"],
+      "patterns": ["build.*pool", "swimming.*pool", "large.*pool", "construction.*permit", "development.*permit", "building.*approval"],
+      "authorities": ["council", "planning"],
+      "description": "Building permits and development approvals for pools, extensions, and construction projects"
+    },
+    "dispute_resolution": {
+      "keywords": ["dispute", "mediation", "tribunal", "conflict", "disagreement", "resolution"],
+      "patterns": ["dispute.*resolution", "mediation", "tribunal", "conflict.*resolution"],
+      "authorities": ["dispute_resolution"],
+      "description": "General dispute resolution and mediation services"
+    }
+  },
+  "authority_types": {
+    "food_safety": {
+      "name": "Food Safety Authority",
+      "description": "Responsible for food safety regulations and licensing",
+      "contact_type": "food_safety"
+    },
+    "business_support": {
+      "name": "Business Support Services", 
+      "description": "Assistance with business permits, licensing, and regulations",
+      "contact_type": "business_support"
+    },
+    "council": {
+      "name": "Local Council",
+      "description": "Local government services including permits, approvals, and local regulations",
+      "contact_type": "council"
+    },
+    "dispute_resolution": {
+      "name": "Dispute Resolution Service",
+      "description": "Tribunal or mediation services for resolving disputes",
+      "contact_type": "dispute_resolution"
+    },
+    "legislation": {
+      "name": "Relevant Legislation",
+      "description": "Acts and regulations governing the legal area",
+      "contact_type": "legislation"
+    },
+    "planning": {
+      "name": "Planning Authority",
+      "description": "Development and planning approvals",
+      "contact_type": "planning"
+    }
+  },
+  "jurisdiction_legislation": {
+    "qld": {
+      "property_disputes": {
+        "title": "Neighbourhood Disputes Act 2011 (QLD)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/nda2011205/"
+      },
+      "neighbourhood_disputes": {
+        "title": "Neighbourhood Disputes Act 2011 (QLD)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/nda2011205/"
+      },
+      "dispute_resolution": {
+        "title": "Queensland Civil and Administrative Tribunal Act 2009 (QLD)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/qcaata2009498/"
+      },
+      "development_permits": {
+        "title": "Building Act 1975 (QLD)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/ba1975157/"
+      },
+      "property_law": {
+        "title": "Planning Act 2016 (QLD)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/pa2016172/"
+      }
+    },
+    "nsw": {
+      "property_disputes": {
+        "title": "Dividing Fences Act 1991 (NSW)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/dfa1991137/"
+      },
+      "neighbourhood_disputes": {
+        "title": "Community Justice Centres Act 1983 (NSW)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/cjca1983259/"
+      },
+      "dispute_resolution": {
+        "title": "Civil and Administrative Tribunal Act 2013 (NSW)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/caata2013328/"
+      }
+    },
+    "vic": {
+      "property_disputes": {
+        "title": "Fences Act 1968 (VIC)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/fa196892/"
+      },
+      "neighbourhood_disputes": {
+        "title": "Dispute Settlement Centre of Victoria Act 1989 (VIC)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/dscova1989407/"
+      },
+      "dispute_resolution": {
+        "title": "Victorian Civil and Administrative Tribunal Act 1998 (VIC)",
+        "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/vcaata1998428/"
+      }
+    }
+  },
+  "jurisdiction_authorities": {
+    "qld": {
+      "dispute_resolution": {
+        "title": "Queensland Civil and Administrative Tribunal (QCAT)",
+        "url": "https://www.qcat.qld.gov.au/neighbourhood-disputes",
+        "phone": "1300 753 228",
+        "email": "enquiries@qcat.qld.gov.au"
+      }
+    },
+    "nsw": {
+      "dispute_resolution": {
+        "title": "NSW Civil and Administrative Tribunal (NCAT)",
+        "url": "https://www.ncat.nsw.gov.au/consumer-trader/dividing-fences.html",
+        "phone": "1300 006 228",
+        "email": "ncat@justice.nsw.gov.au"
+      }
+    },
+    "vic": {
+      "dispute_resolution": {
+        "title": "Victorian Civil and Administrative Tribunal (VCAT)",
+        "url": "https://www.vcat.vic.gov.au/case-types/residential-tenancies/fencing-disputes",
+        "phone": "1300 018 228",
+        "email": "admin@vcat.vic.gov.au"
+      }
+    }
+  }
+}
