@@ -4,11 +4,15 @@
 // Seeds the database with essential government documents across all Australian jurisdictions
 
 import { PersistentDatabase } from './persistent-database.js';
+import { AustLIIScraper } from './austlii-scraper.js';
+import { IntelligentDocumentDiscovery } from './intelligent-discovery.js';
 
 export class DocumentSeeder {
   constructor(database) {
     this.db = database;
     this.seedDocuments = this.getSeedDocumentList();
+    this.austliiScraper = new AustLIIScraper();
+    this.intelligentDiscovery = new IntelligentDocumentDiscovery();
   }
 
   // Core government documents that form the foundation for most queries
@@ -166,6 +170,15 @@ export class DocumentSeeder {
           tags: ['council', 'local government', 'permits', 'bylaws'],
           jurisdiction: 'Western Australia',
           document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/fa2008114/',
+          title: 'Food Act 2008 (WA)',
+          description: 'Western Australian food safety regulations',
+          priority: 8,
+          tags: ['food', 'safety', 'business', 'license', 'health', 'restaurant'],
+          jurisdiction: 'Western Australia',
+          document_type: 'act'
         }
       ],
 
@@ -188,6 +201,108 @@ export class DocumentSeeder {
           tags: ['council', 'local government', 'permits'],
           jurisdiction: 'South Australia',
           document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/fsa1997115/',
+          title: 'Food Act 2001 (SA)',
+          description: 'South Australian food safety regulations',
+          priority: 8,
+          tags: ['food', 'safety', 'business', 'license', 'health'],
+          jurisdiction: 'South Australia',
+          document_type: 'act'
+        }
+      ],
+
+      // Tasmania - Essential documents
+      tas: [
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/lupaa1993179/',
+          title: 'Land Use Planning and Approvals Act 1993 (TAS)',
+          description: 'Tasmanian planning and development law',
+          priority: 10,
+          tags: ['planning', 'development', 'building', 'approval', 'council', 'zoning'],
+          jurisdiction: 'Tasmania',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/lga1993152/',
+          title: 'Local Government Act 1993 (TAS)',
+          description: 'Tasmanian council regulations',
+          priority: 9,
+          tags: ['council', 'local government', 'permits', 'bylaws'],
+          jurisdiction: 'Tasmania',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/fa2003102/',
+          title: 'Food Act 2003 (TAS)',
+          description: 'Tasmanian food safety and business licensing',
+          priority: 8,
+          tags: ['food', 'safety', 'business', 'license', 'health', 'restaurant'],
+          jurisdiction: 'Tasmania',
+          document_type: 'act'
+        }
+      ],
+
+      // Northern Territory - Core documents
+      nt: [
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/pa269/',
+          title: 'Planning Act 1999 (NT)',
+          description: 'Northern Territory planning and development',
+          priority: 10,
+          tags: ['planning', 'development', 'building', 'approval', 'council'],
+          jurisdiction: 'Northern Territory',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/lga182/',
+          title: 'Local Government Act 2019 (NT)',
+          description: 'NT local council powers and regulations',
+          priority: 9,
+          tags: ['council', 'local government', 'permits', 'bylaws'],
+          jurisdiction: 'Northern Territory',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/fa102/',
+          title: 'Food Act 2004 (NT)',
+          description: 'NT food safety and business licensing',
+          priority: 8,
+          tags: ['food', 'safety', 'business', 'license', 'health'],
+          jurisdiction: 'Northern Territory',
+          document_type: 'act'
+        }
+      ],
+
+      // Australian Capital Territory - Essential documents
+      act: [
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/pda2007236/',
+          title: 'Planning and Development Act 2007 (ACT)',
+          description: 'ACT planning and development regulations',
+          priority: 10,
+          tags: ['planning', 'development', 'building', 'approval', 'council', 'territory'],
+          jurisdiction: 'Australian Capital Territory',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/fa2001107/',
+          title: 'Food Act 2001 (ACT)',
+          description: 'ACT food safety and business licensing',
+          priority: 8,
+          tags: ['food', 'safety', 'business', 'license', 'health', 'restaurant'],
+          jurisdiction: 'Australian Capital Territory',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/cpa2008294/',
+          title: 'Civil Law (Property) Act 2006 (ACT)',
+          description: 'ACT property and land regulations',
+          priority: 7,
+          tags: ['property', 'land', 'ownership', 'lease', 'territory'],
+          jurisdiction: 'Australian Capital Territory',
+          document_type: 'act'
         }
       ],
 
@@ -209,6 +324,33 @@ export class DocumentSeeder {
           priority: 7,
           tags: ['liquor', 'alcohol', 'license', 'restaurant', 'bar', 'hospitality'],
           jurisdiction: 'Multi-State',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ohs2011144/',
+          title: 'Work Health and Safety Act 2011',
+          description: 'National workplace health and safety standards',
+          priority: 8,
+          tags: ['workplace', 'safety', 'health', 'employment', 'business', 'compliance'],
+          jurisdiction: 'National',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ea2007136/',
+          title: 'Environment Protection and Biodiversity Conservation Act 1999',
+          description: 'Federal environmental protection laws',
+          priority: 7,
+          tags: ['environment', 'protection', 'biodiversity', 'federal', 'approval', 'assessment'],
+          jurisdiction: 'Commonwealth',
+          document_type: 'act'
+        },
+        {
+          url: 'https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/fwa2009114/',
+          title: 'Fair Work Act 2009',
+          description: 'National employment and industrial relations',
+          priority: 8,
+          tags: ['employment', 'fair work', 'wages', 'conditions', 'dismissal', 'unions'],
+          jurisdiction: 'Commonwealth',
           document_type: 'act'
         }
       ]
@@ -369,11 +511,154 @@ export class DocumentSeeder {
     console.log('🌳 Full seeding with all available documents...');
     
     return await this.seedDatabase({
-      batchSize: 5,
-      delayBetweenBatches: 2000,
+      batchSize: 4,
+      delayBetweenBatches: 1500,
+      maxDocuments: 150,
+      skipExisting: true
+    });
+  }
+
+  // Seed documents for all Australian states and territories
+  async seedAllJurisdictions() {
+    console.log('🇦🇺 Comprehensive seeding for all Australian jurisdictions...');
+    
+    return await this.seedDatabase({
+      batchSize: 3,
+      delayBetweenBatches: 1000,
       maxDocuments: 100,
       skipExisting: true
     });
+  }
+
+  // Discover and seed documents automatically using AustLII scraper
+  async discoverAndSeed(options = {}) {
+    const {
+      jurisdiction = 'all', // 'all' or specific jurisdiction code like 'nsw', 'vic'
+      maxDocsPerJurisdiction = 15,
+      topic = 'planning', // planning, business, food, etc.
+      batchSize = 3,
+      delayBetweenBatches = 1500
+    } = options;
+
+    console.log('🔍 Starting automated document discovery and seeding...');
+    
+    let discoveredDocs = [];
+
+    try {
+      if (jurisdiction === 'all') {
+        // Use AustLII scraper for comprehensive discovery
+        console.log('🕷️  Using AustLII scraper for comprehensive discovery...');
+        discoveredDocs = await this.austliiScraper.scrapeAllJurisdictions({
+          maxDocsPerJurisdiction: maxDocsPerJurisdiction
+        });
+      } else {
+        // Use intelligent discovery for specific jurisdiction/topic
+        console.log(`🧠 Using intelligent discovery for ${jurisdiction} - ${topic}...`);
+        discoveredDocs = await this.intelligentDiscovery.discoverDocuments(jurisdiction, topic, {
+          maxUrls: maxDocsPerJurisdiction
+        });
+      }
+
+      console.log(`📋 Discovered ${discoveredDocs.length} documents for seeding`);
+
+      if (discoveredDocs.length === 0) {
+        console.log('⚠️  No documents discovered, falling back to manual seed list');
+        return await this.quickSeed();
+      }
+
+      // Convert discovered documents to seeder format
+      const seederFormat = jurisdiction === 'all' 
+        ? this.austliiScraper.convertToSeederFormat(discoveredDocs)
+        : this.intelligentDiscovery.convertToSeederFormat(discoveredDocs);
+
+      // Seed the discovered documents
+      let seededCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      console.log(`📦 Seeding ${seederFormat.length} discovered documents...`);
+
+      for (let i = 0; i < seederFormat.length; i += batchSize) {
+        const batch = seederFormat.slice(i, i + batchSize);
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(seederFormat.length / batchSize);
+        
+        console.log(`📦 Processing batch ${batchNum}/${totalBatches} (${batch.length} documents)`);
+        
+        const batchPromises = batch.map(doc => this.seedDiscoveredDocument(doc));
+        const batchResults = await Promise.allSettled(batchPromises);
+        
+        batchResults.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
+            const outcome = result.value;
+            if (outcome.seeded) seededCount++;
+            else if (outcome.skipped) skippedCount++;
+          } else {
+            console.error(`❌ Batch error for ${batch[idx].title}:`, result.reason);
+            failedCount++;
+          }
+        });
+        
+        if (i + batchSize < seederFormat.length && delayBetweenBatches > 0) {
+          console.log(`⏸️  Pausing ${delayBetweenBatches}ms between batches...`);
+          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+        }
+      }
+
+      console.log('\n✅ Automated discovery and seeding completed!');
+      console.log(`📊 Results: ${seededCount} seeded, ${skippedCount} skipped, ${failedCount} failed`);
+      
+      const finalStats = await this.db.getStats();
+      console.log(`📈 Database now contains: ${finalStats.documents} documents, ${finalStats.cache.files} cached files`);
+      
+      return {
+        discovered: discoveredDocs.length,
+        seeded: seededCount,
+        skipped: skippedCount,
+        failed: failedCount,
+        total: seederFormat.length
+      };
+
+    } catch (error) {
+      console.error('💥 Automated discovery failed:', error);
+      console.log('🔄 Falling back to manual seed list...');
+      return await this.quickSeed();
+    }
+  }
+
+  // Seed a discovered document (different format from manual documents)
+  async seedDiscoveredDocument(docConfig) {
+    try {
+      // Check if document already exists
+      const existing = await this.db.getDocument(docConfig.url);
+      if (existing) {
+        console.log(`⏭️  Skipped (exists): ${docConfig.title}`);
+        return { skipped: true, url: docConfig.url };
+      }
+      
+      console.log(`📄 Seeding discovered: ${docConfig.title}...`);
+      
+      // Create document object for database
+      const document = {
+        url: docConfig.url,
+        content: await this.fetchRealContent(docConfig.url),
+        tags: docConfig.tags || ['legislation'],
+        jurisdiction: docConfig.jurisdiction,
+        document_type: docConfig.document_type || 'act',
+        synthetic: false, // Mark as real content
+        discovered: true // Mark as automatically discovered
+      };
+      
+      // Save to database
+      await this.db.saveDocument(document);
+      
+      console.log(`✅ Seeded discovered: ${docConfig.title}`);
+      return { seeded: true, url: docConfig.url };
+      
+    } catch (error) {
+      console.error(`❌ Failed to seed discovered ${docConfig.title}:`, error.message);
+      return { failed: true, url: docConfig.url, error: error.message };
+    }
   }
 }
 
@@ -396,8 +681,50 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       case 'full':
         result = await seeder.fullSeed();
         break;
+      case 'all':
+      case 'jurisdictions':
+        result = await seeder.seedAllJurisdictions();
+        break;
+      case 'discover':
+      case 'auto':
+        console.log('🤖 Using automated document discovery...');
+        result = await seeder.discoverAndSeed({
+          jurisdiction: args[1] || 'all',
+          topic: args[2] || 'planning',
+          maxDocsPerJurisdiction: parseInt(args[3]) || 15
+        });
+        break;
+      case 'scrape':
+        console.log('🕷️  Using AustLII scraper for comprehensive discovery...');
+        result = await seeder.discoverAndSeed({
+          jurisdiction: 'all',
+          maxDocsPerJurisdiction: parseInt(args[1]) || 10
+        });
+        break;
+      case 'intelligent':
+        console.log('🧠 Using intelligent discovery for specific jurisdiction/topic...');
+        const jurisdiction = args[1] || 'nsw';
+        const topic = args[2] || 'planning';
+        result = await seeder.discoverAndSeed({
+          jurisdiction: jurisdiction,
+          topic: topic,
+          maxDocsPerJurisdiction: parseInt(args[3]) || 15
+        });
+        break;
       default:
-        console.log('Usage: node document-seeder.js [quick|full]');
+        console.log('Usage: node document-seeder.js [command] [options]');
+        console.log('\nCommands:');
+        console.log('  quick                    : Top 15 priority documents (fast)');
+        console.log('  full                     : All manually curated documents');
+        console.log('  all                      : All Australian jurisdictions (recommended)');
+        console.log('  discover [jurisdiction] [topic] [max] : Auto-discover documents');
+        console.log('  scrape [max]             : Use AustLII scraper (comprehensive)');
+        console.log('  intelligent [jurisdiction] [topic] [max] : Use intelligent discovery');
+        console.log('\nExamples:');
+        console.log('  node document-seeder.js discover          # Discover all jurisdictions, planning docs');
+        console.log('  node document-seeder.js discover nsw food # NSW food-related documents');
+        console.log('  node document-seeder.js scrape 20         # Scrape up to 20 docs per jurisdiction');
+        console.log('  node document-seeder.js intelligent vic business 10  # Victoria business docs');
         process.exit(1);
     }
     

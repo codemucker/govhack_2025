@@ -44,13 +44,69 @@ export interface QueryEvent {
   data?: any;
 }
 
+export interface LocationDetectionResponse {
+  success: boolean;
+  location: {
+    city: string;
+    state: string;
+    country: string;
+    detected: boolean;
+    source: 'ip' | 'default' | 'fallback';
+    error?: string;
+  };
+}
+
+export interface ClarificationResponse {
+  success: boolean;
+  needs_clarification: boolean;
+  clarification_questions?: string[];
+  suggested_details?: string[];
+  reason?: string;
+  queryId: string;
+  events?: QueryEvent[];
+  executionTime: number;
+}
+
 export interface AskQuestionResponse {
   success: boolean;
   answer?: string;
+  needs_clarification?: boolean;
+  clarification_questions?: string[];
+  suggested_details?: string[];
+  reason?: string;
+  structured_data?: Array<{
+    title?: string;
+    authority?: string;
+    description?: string;
+    actions?: Array<{
+      step: number;
+      desc?: string;
+      text?: string;
+      link?: string;
+    }>;
+    notes?: string[];
+    jurisdiction_level?: string;
+    priority?: string;
+  }>;
+  deep_links?: Array<{
+    type: string;
+    title: string;
+    description: string;
+    url: string;
+    authority?: string;
+    jurisdiction?: string;
+    jurisdiction_level?: string;
+    contact_type?: string;
+    phone?: string;
+    email?: string;
+    chatbot?: string;
+  }>;
   sources?: Array<{
     title: string;
     url: string;
     jurisdiction: string;
+    jurisdiction_level?: string;
+    total_score?: number;
   }>;
   confidence?: number;
   queryId: string;
@@ -162,6 +218,22 @@ export class ApiClient {
     }
 
     return result;
+  }
+
+  // Convenience method for location detection
+  async detectLocation(): Promise<LocationDetectionResponse> {
+    const response = await fetch(`${this.baseUrl}/api/location/detect`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json() as LocationDetectionResponse;
   }
 
   // Convenience method for health check

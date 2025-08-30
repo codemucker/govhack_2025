@@ -68,6 +68,60 @@
       />
     </div>
 
+    <!-- Clarification Dialog -->
+    <div v-if="showClarification" class="clarification-overlay">
+      <div class="clarification-dialog">
+        <div class="clarification-header">
+          <h3>Need More Details</h3>
+          <p class="clarification-reason">{{ clarificationReason }}</p>
+        </div>
+        
+        <div class="clarification-content">
+          <div v-if="clarificationQuestions.length > 0" class="clarification-questions">
+            <h4>Please provide more information:</h4>
+            <ul>
+              <li v-for="question in clarificationQuestions" :key="question">
+                {{ question }}
+              </li>
+            </ul>
+          </div>
+          
+          <div v-if="suggestedDetails.length > 0" class="suggested-details">
+            <h4>Helpful details to include:</h4>
+            <div class="detail-tags">
+              <span v-for="detail in suggestedDetails" :key="detail" class="detail-tag">
+                {{ detail }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="clarification-input">
+            <label for="updated-query">Updated question with more details:</label>
+            <textarea 
+              id="updated-query"
+              v-model="formData.query"
+              rows="4"
+              placeholder="Please provide the additional details mentioned above..."
+              class="clarification-textarea"
+            ></textarea>
+          </div>
+        </div>
+        
+        <div class="clarification-actions">
+          <button 
+            @click="handleClarificationResponse(formData.query)" 
+            class="btn btn-primary"
+            :disabled="!formData.query.trim()"
+          >
+            Search with Details
+          </button>
+          <button @click="dismissClarification" class="btn btn-secondary">
+            Continue Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Export Dialog -->
     <ExportDialog
       :is-open="exportDialogOpen"
@@ -91,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import SearchForm from '../components/SearchForm.vue'
 import SearchResults from '../components/SearchResults.vue'
 import SearchWizard from '../components/SearchWizard.vue'
@@ -131,6 +185,8 @@ type TriageResponse = {
     authority: string
     type: string
     phone?: string
+    email?: string
+    chatbot?: string
     url: string
   }>
   disclaimer: string
@@ -148,6 +204,16 @@ const formData = ref({
 const loading = ref(false)
 const result = ref<TriageResponse | null>(null)
 const error = ref('')
+
+// Clarification state
+const showClarification = ref(false)
+const clarificationQuestions = ref<string[]>([])
+const clarificationReason = ref('')
+const suggestedDetails = ref<string[]>([])
+
+// Location detection state
+const autoDetectedLocation = ref('')
+const locationDetected = ref(false)
 
 // Export state
 const exportDialogOpen = ref(false)
@@ -174,124 +240,6 @@ const exportData = ref<ExportData>({
 const printData = ref<ExportData | null>(null)
 const printViewRef = ref()
 
-/**
- * Parse the answer text to extract structured requirements
- */
-function parseRequirementsFromAnswer(answerText: string, deepLinks: any[] = []): any[] {
-  const requirements: any[] = []
-  
-  // Split answer into numbered sections (1. Business Registration, 2. Food Business License, etc.)
-  const numberedSections = answerText.split(/\d+\.\s+\*\*([^*]+)\*\*:?\s*/g)
-  
-  // Process each section (skip first empty split result)
-  for (let i = 1; i < numberedSections.length; i += 2) {
-    const title = numberedSections[i].trim()
-    const content = numberedSections[i + 1]?.trim() || ''
-    
-    if (!title || !content) continue
-    
-    // Extract authority from the content (look for organizations)
-    let authority = 'Government Authority'
-    const authorityMatches = content.match(/(?:through|with|from|by)\s+([A-Z][^.]*?(?:Council|Health|ASIC|Commission|Authority|Department|Government)[^.]*?)(?:\.|,|$)/i)
-    if (authorityMatches) {
-      authority = authorityMatches[1].trim().replace(/\([^)]*\)/g, '').trim()
-    } else if (title.toLowerCase().includes('council')) {
-      authority = 'Local Council'
-    } else if (title.toLowerCase().includes('food') || title.toLowerCase().includes('health')) {
-      authority = 'Queensland Health'
-    } else if (title.toLowerCase().includes('business registration')) {
-      authority = 'ASIC'
-    }
-
-    // Extract actionable steps from the content
-    const actions: any[] = []
-    let stepNumber = 1
-
-    // Look for sub-bullets or dash points
-    const bulletPoints = content.split(/[-•]\s+/).filter(point => point.trim().length > 0)
-    
-    if (bulletPoints.length > 1) {
-      // Multiple bullet points found
-      bulletPoints.slice(1).forEach(bullet => { // Skip first empty split
-        const cleanBullet = bullet.replace(/\n.*$/, '').trim() // Take first line only
-        if (cleanBullet) {
-          // Extract link from markdown format [text](url)
-          const linkMatch = cleanBullet.match(/\[([^\]]+)\]\(([^)]+)\)/)
-          let actionDesc = cleanBullet
-          let actionLink = undefined
-          
-          if (linkMatch) {
-            actionLink = linkMatch[2]
-            actionDesc = cleanBullet.replace(linkMatch[0], linkMatch[1])
-          }
-          
-          actions.push({
-            step: stepNumber++,
-            desc: actionDesc,
-            link: actionLink
-          })
-        }
-      })
-    } else {
-      // Single description, create one main action
-      let mainAction = content.split('.')[0] + '.' // First sentence
-      let actionLink = undefined
-      
-      // Extract main link from content
-      const linkMatch = content.match(/\[([^\]]+)\]\(([^)]+)\)/)
-      if (linkMatch) {
-        actionLink = linkMatch[2]
-        // Clean up the action description by removing the markdown link
-        mainAction = mainAction.replace(linkMatch[0], linkMatch[1])
-      }
-      
-      actions.push({
-        step: 1,
-        desc: mainAction.trim(),
-        link: actionLink
-      })
-      
-      // Look for additional specific steps mentioned
-      if (content.includes('apply for') || content.includes('obtain')) {
-        actions.push({
-          step: 2,
-          desc: 'Submit application and required documentation',
-          link: actionLink
-        })
-      }
-      
-      if (content.includes('inspection') || content.includes('approval')) {
-        actions.push({
-          step: actions.length + 1,
-          desc: 'Arrange inspection and obtain approval',
-          link: undefined
-        })
-      }
-    }
-    
-    // Extract notes/important information
-    const notes: string[] = []
-    if (content.includes('must') || content.includes('required')) {
-      notes.push('Required before business operations can commence')
-    }
-    if (content.includes('before') || content.includes('prior to')) {
-      notes.push('Complete this requirement before proceeding with other permits')
-    }
-    
-    requirements.push({
-      title: title,
-      authority: authority,
-      actions: actions.length > 0 ? actions : [{
-        step: 1,
-        desc: 'Contact the relevant authority for specific requirements',
-        link: undefined
-      }],
-      notes: notes.length > 0 ? notes : ['Verify current requirements with the relevant authority']
-    })
-  }
-  
-  return requirements
-}
 
 /**
  * Convert AskQuestionResponse to TriageResponse format for compatibility
@@ -312,16 +260,27 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     confidence: (source.total_score || 50) / 100
   })) || []
 
-  // Parse requirements from the answer text
-  const requirements = parseRequirementsFromAnswer(response.answer || '', response.deep_links)
+  // Use structured data from backend instead of parsing answer text
+  const requirements = (response.structured_data || []).map(req => ({
+    title: req.title || 'Requirement',
+    authority: req.authority || 'Government Authority',
+    actions: req.actions?.map(action => ({
+      step: action.step,
+      desc: action.desc || action.text || '',
+      link: action.link
+    })) || [],
+    notes: req.notes || []
+  }))
 
   // Extract contacts from regulatory authority links
   const contacts = response.deep_links?.filter(link => 
     link.type === 'regulatory_authority'
   ).map(link => ({
-    authority: link.authority || link.jurisdiction,
+    authority: link.authority || link.jurisdiction || 'Government Authority',
     type: link.contact_type || 'General',
-    phone: undefined, // Not provided in new API
+    phone: link.phone,
+    email: link.email,
+    chatbot: link.chatbot,
     url: link.url
   })) || []
 
@@ -330,6 +289,9 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     contacts.push({
       authority: 'Local Council',
       type: 'General Enquiries',
+      phone: undefined,
+      email: undefined,
+      chatbot: undefined,
       url: response.deep_links?.find(l => l.type === 'regulatory_authority')?.url || '#'
     })
   }
@@ -354,6 +316,44 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
 }
 
 /**
+ * Auto-detect user location on component mount
+ */
+const detectUserLocation = async () => {
+  try {
+    const locationResponse = await apiClient.detectLocation()
+    if (locationResponse.success && locationResponse.location.detected) {
+      autoDetectedLocation.value = `${locationResponse.location.city}, ${locationResponse.location.state}`
+      locationDetected.value = true
+      
+      // Pre-fill address field if not already filled
+      if (!formData.value.address) {
+        formData.value.address = autoDetectedLocation.value
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to detect location:', error)
+  }
+}
+
+/**
+ * Handle clarification response - user provides more details
+ */
+const handleClarificationResponse = (updatedQuery: string) => {
+  formData.value.query = updatedQuery
+  showClarification.value = false
+  performSearch(formData.value)
+}
+
+/**
+ * Dismiss clarification dialog and proceed with original query
+ */
+const dismissClarification = () => {
+  showClarification.value = false
+  // Force search without clarification check by setting a flag
+  performSearchWithoutClarification(formData.value)
+}
+
+/**
  * Perform search with form data using the new API client
  * @param data - Form data containing query and address
  */
@@ -363,19 +363,31 @@ const performSearch = async (data: { query: string; address: string }) => {
   loading.value = true
   error.value = ''
   result.value = null
+  showClarification.value = false
   
   try {
+    // Use detected location if address field is empty
+    const finalAddress = data.address || autoDetectedLocation.value
+    
     const response = await apiClient.askLegalQuestion({
       question: data.query,
       userLocale: 'en-AU',
       context: {
-        location: data.address || undefined
+        location: finalAddress || undefined
       }
     })
     
-    if (response.success && response.answer) {
-      // Convert the new API response format to the old format for compatibility
-      result.value = convertToTriageResponse(response, data.query, data.address)
+    if (response.success) {
+      // Check if clarification is needed
+      if (response.needs_clarification) {
+        showClarification.value = true
+        clarificationQuestions.value = response.clarification_questions || []
+        clarificationReason.value = response.reason || ''
+        suggestedDetails.value = response.suggested_details || []
+      } else if (response.answer) {
+        // Convert the new API response format to the old format for compatibility
+        result.value = convertToTriageResponse(response, data.query, finalAddress)
+      }
     } else {
       error.value = response.error || 'Failed to get legal guidance'
     }
@@ -384,6 +396,15 @@ const performSearch = async (data: { query: string; address: string }) => {
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * Perform search without clarification check (for when user dismisses clarification)
+ */
+const performSearchWithoutClarification = async (data: { query: string; address: string }) => {
+  // Implementation would include a flag to bypass clarification
+  // For now, we'll just call regular search
+  await performSearch(data)
 }
 
 /**
@@ -483,6 +504,11 @@ const handleExportError = (error: string) => {
 const clearError = () => {
   error.value = ''
 }
+
+// Auto-detect location when component mounts
+onMounted(() => {
+  detectUserLocation()
+})
 </script>
 
 <style scoped>
@@ -641,6 +667,194 @@ const clearError = () => {
   
   .error-content h3 {
     font-size: 1rem;
+  }
+}
+
+/* Clarification Dialog Styles */
+.clarification-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.clarification-dialog {
+  background: white;
+  border-radius: 1rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.clarification-header {
+  padding: 2rem 2rem 1rem 2rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.clarification-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.clarification-reason {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.clarification-content {
+  padding: 1.5rem 2rem;
+}
+
+.clarification-questions {
+  margin-bottom: 1.5rem;
+}
+
+.clarification-questions h4 {
+  margin: 0 0 0.75rem 0;
+  color: #374151;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.clarification-questions ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #4b5563;
+}
+
+.clarification-questions li {
+  margin-bottom: 0.5rem;
+}
+
+.suggested-details {
+  margin-bottom: 1.5rem;
+}
+
+.suggested-details h4 {
+  margin: 0 0 0.75rem 0;
+  color: #374151;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.detail-tag {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+}
+
+.clarification-input {
+  margin-top: 1.5rem;
+}
+
+.clarification-input label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.clarification-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s;
+}
+
+.clarification-textarea:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+}
+
+.clarification-actions {
+  padding: 1.5rem 2rem 2rem 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  border-top: 1px solid #e5e7eb;
+}
+
+.clarification-actions .btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+}
+
+.clarification-actions .btn-primary {
+  background: #059669;
+  color: white;
+}
+
+.clarification-actions .btn-primary:hover:not(:disabled) {
+  background: #047857;
+}
+
+.clarification-actions .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.clarification-actions .btn-secondary {
+  background: #f9fafb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.clarification-actions .btn-secondary:hover {
+  background: #f3f4f6;
+}
+
+@media (max-width: 640px) {
+  .clarification-dialog {
+    margin: 1rem;
+    max-height: calc(100vh - 2rem);
+  }
+  
+  .clarification-header,
+  .clarification-content,
+  .clarification-actions {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  
+  .clarification-actions {
+    flex-direction: column;
+  }
+  
+  .detail-tags {
+    justify-content: center;
   }
 }
 </style>

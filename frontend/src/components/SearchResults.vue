@@ -198,6 +198,19 @@
                 {{ contact.phone }}
               </a>
             </div>
+            <div v-if="contact.email" class="contact-item">
+              <span class="contact-icon">✉️</span>
+              <a :href="`mailto:${contact.email}`" class="contact-link">
+                {{ contact.email }}
+              </a>
+            </div>
+            <div v-if="contact.chatbot" class="contact-item">
+              <span class="contact-icon">💬</span>
+              <a :href="contact.chatbot" target="_blank" rel="noopener noreferrer" class="contact-link">
+                Online Chat Support
+                <span class="external-icon">↗</span>
+              </a>
+            </div>
             <div class="contact-item">
               <span class="contact-icon">🌐</span>
               <a :href="contact.url" target="_blank" rel="noopener noreferrer" class="contact-link">

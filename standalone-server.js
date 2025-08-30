@@ -484,9 +484,26 @@ class AustLIIDiscovery {
         url: jurisdictionData.foodAuthorityUrl,
         authority: jurisdictionData.foodAuthority,
         jurisdiction: jurisdiction.toUpperCase(),
-        contact_type: 'food_safety'
+        contact_type: 'food_safety',
+        phone: jurisdictionData.foodAuthorityPhone,
+        email: jurisdictionData.foodAuthorityEmail,
+        chatbot: jurisdictionData.foodAuthorityChatbot
       });
     }
+    
+    // Business support services
+    authorityLinks.push({
+      type: 'regulatory_authority',
+      title: 'Business Support Services',
+      description: 'Get help with business permits and regulations',
+      url: jurisdictionData.businessSupportUrl,
+      authority: 'Business Support',
+      jurisdiction: jurisdiction.toUpperCase(),
+      contact_type: 'business_support',
+      phone: jurisdictionData.businessSupportPhone,
+      email: jurisdictionData.businessSupportEmail,
+      chatbot: jurisdictionData.businessSupportChatbot
+    });
     
     // Local council
     authorityLinks.push({
@@ -496,7 +513,10 @@ class AustLIIDiscovery {
       url: jurisdictionData.localCouncilUrl,
       authority: 'Local Council',
       jurisdiction: jurisdiction.toUpperCase(),
-      contact_type: 'local_government'
+      contact_type: 'local_government',
+      phone: jurisdictionData.localCouncilPhone,
+      email: jurisdictionData.localCouncilEmail,
+      chatbot: jurisdictionData.localCouncilChatbot
     });
     
     return authorityLinks;
@@ -508,23 +528,53 @@ class AustLIIDiscovery {
       'qld': {
         foodAuthority: 'Queensland Health',
         foodAuthorityUrl: 'https://www.health.qld.gov.au/public-health/industry-environment/food-safety',
+        foodAuthorityPhone: '13 74 35',
+        foodAuthorityEmail: 'foodsafety@health.qld.gov.au',
+        foodAuthorityChatbot: 'https://www.health.qld.gov.au/contact-us/online-services',
         foodLicenceUrl: 'https://www.business.qld.gov.au/industries/hospitality-tourism-sport/hospitality-gaming/food-business/starting',
         developmentUrl: 'https://www.business.qld.gov.au/industries/building-construction-property/building-construction/approvals-permits',
-        localCouncilUrl: 'https://www.qld.gov.au/about/how-government-works/local-government'
+        localCouncilUrl: 'https://www.qld.gov.au/about/how-government-works/local-government',
+        localCouncilPhone: '07 3006 6200',
+        localCouncilEmail: 'info@councils.qld.gov.au',
+        localCouncilChatbot: 'https://www.qld.gov.au/contact-us/online-services',
+        businessSupportPhone: '13 QGOV (13 74 68)',
+        businessSupportEmail: 'business.advice@business.qld.gov.au',
+        businessSupportUrl: 'https://www.business.qld.gov.au/contact-us',
+        businessSupportChatbot: 'https://www.business.qld.gov.au/contact-us/online-chat'
       },
       'nsw': {
         foodAuthority: 'NSW Food Authority',
         foodAuthorityUrl: 'https://www.foodauthority.nsw.gov.au/',
+        foodAuthorityPhone: '1300 552 406',
+        foodAuthorityEmail: 'info@foodauthority.nsw.gov.au',
+        foodAuthorityChatbot: 'https://www.foodauthority.nsw.gov.au/contact-us',
         foodLicenceUrl: 'https://www.foodauthority.nsw.gov.au/retail/food-business-licensing',
         developmentUrl: 'https://www.planning.nsw.gov.au/development-applications',
-        localCouncilUrl: 'https://www.olg.nsw.gov.au/'
+        localCouncilUrl: 'https://www.olg.nsw.gov.au/',
+        localCouncilPhone: '02 4428 4100',
+        localCouncilEmail: 'olg@olg.nsw.gov.au',
+        localCouncilChatbot: 'https://www.service.nsw.gov.au/contact-us',
+        businessSupportPhone: '13 77 88',
+        businessSupportEmail: 'business@service.nsw.gov.au',
+        businessSupportUrl: 'https://www.service.nsw.gov.au/business',
+        businessSupportChatbot: 'https://www.service.nsw.gov.au/contact-us/online-chat'
       },
       'vic': {
         foodAuthority: 'Department of Health Victoria',
         foodAuthorityUrl: 'https://www.health.vic.gov.au/food-safety',
+        foodAuthorityPhone: '1300 364 352',
+        foodAuthorityEmail: 'foodsafety@health.vic.gov.au',
+        foodAuthorityChatbot: 'https://www.health.vic.gov.au/contact-us',
         foodLicenceUrl: 'https://www.business.vic.gov.au/licensing-and-registration/food-business-registration',
         developmentUrl: 'https://www.planning.vic.gov.au/permits-and-applications',
-        localCouncilUrl: 'https://www.localgovernment.vic.gov.au/'
+        localCouncilUrl: 'https://www.localgovernment.vic.gov.au/',
+        localCouncilPhone: '03 9094 0000',
+        localCouncilEmail: 'info@mav.asn.au',
+        localCouncilChatbot: 'https://www.vic.gov.au/contact-us',
+        businessSupportPhone: '13 61 68',
+        businessSupportEmail: 'info@business.vic.gov.au',
+        businessSupportUrl: 'https://www.business.vic.gov.au/contact-us',
+        businessSupportChatbot: 'https://www.business.vic.gov.au/contact-us/online-chat'
       }
     };
     
@@ -751,6 +801,18 @@ class AustLIIDiscovery {
       const potentialLink = potentialLinks.find(link => link.url === linkUrl);
       if (potentialLink) {
         usedLinks.push(potentialLink);
+      }
+    }
+    
+    // Always include regulatory authority contacts for user convenience
+    const authorityLinks = potentialLinks.filter(link => 
+      link.type === 'regulatory_authority'
+    );
+    
+    // Add authority links that aren't already included
+    for (const authorityLink of authorityLinks) {
+      if (!usedLinks.find(link => link.url === authorityLink.url)) {
+        usedLinks.push(authorityLink);
       }
     }
     
@@ -1687,26 +1749,48 @@ QUESTION: ${question}
 CONTEXT FROM LEGAL DOCUMENTS:
 ${context}
 ${deepLinksText}
+
+You must provide your response in TWO parts:
+1. A natural language answer for the user
+2. Structured data in XML format for system parsing
+
+REQUIRED FORMAT:
+
+**ANSWER:**
+[Write a clear, practical answer here with embedded markdown links like [Food Business License](url)]
+
+**STRUCTURED_DATA:**
+<requirements>
+  <requirement>
+    <title>Business Registration</title>
+    <authority>Australian Securities and Investments Commission (ASIC)</authority>
+    <description>Register your business and obtain an ABN</description>
+    <actions>
+      <action step="1" link="https://asic.gov.au/register">Register business name with ASIC</action>
+      <action step="2" link="https://abr.gov.au">Apply for Australian Business Number (ABN)</action>
+    </actions>
+    <notes>
+      <note>Required before applying for local permits</note>
+    </notes>
+    <jurisdiction_level>federal</jurisdiction_level>
+    <priority>high</priority>
+  </requirement>
+</requirements>
+
 INSTRUCTIONS:
 - Answer in Australian English using Australian legal terminology
 - Base your answer ONLY on the provided legal documents
-- If the documents don't contain relevant information, state this clearly
 - Include specific references to which acts or regulations you're citing
-- **IMPORTANT**: When mentioning specific laws, permits, applications, or government services, embed the relevant links provided above directly in your text using markdown format [text](url)
-- **EMBED LINKS WITHIN SENTENCES**: Instead of listing links separately, include them naturally in your response where relevant (e.g., "You'll need to apply for a [Food Business License](url) through Queensland Health")
-- Structure your response with clear numbered steps or bullet points
-- Always end with the standard legal disclaimer
-
-EXAMPLE OF GOOD LINK EMBEDDING:
-"To open a café in Brisbane, you'll need to:
-1. Register your business with [ASIC](business-registration-url) 
-2. Apply for a [Food Business License](food-license-url) from Queensland Health
-3. Contact [Brisbane City Council](council-url) for local permits"
+- Extract each permit/license/requirement as a separate <requirement> in the XML
+- Use the available links provided above in both the answer text and XML action links
+- Set jurisdiction_level to: federal, state, or local
+- Set priority to: high, medium, or low based on importance
+- Always end the natural answer with the legal disclaimer
 
 LEGAL DISCLAIMER TO INCLUDE:
 "⚠️ IMPORTANT: This information is general in nature and should not be considered legal advice. Australian laws can be complex and may vary by jurisdiction. For specific legal matters, please consult with a qualified legal professional or contact the relevant government department."
 
-Please provide a clear, practical answer that helps the user understand their obligations or options under Australian law.`;
+You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`;
 
     // Choose model based on provider
     const model = this.isOpenRouter 
@@ -1756,14 +1840,120 @@ Please provide a clear, practical answer that helps the user understand their ob
         throw new Error('No response generated from OpenAI');
       }
 
+      const fullResponse = data.choices[0].message.content;
+      
+      // Parse the structured response
+      const parsedResponse = this.parseStructuredResponse(fullResponse);
+      
       return {
-        answer: data.choices[0].message.content,
-        tokensUsed: data.usage?.total_tokens
+        answer: parsedResponse.answer,
+        structuredData: parsedResponse.structuredData,
+        tokensUsed: data.usage?.total_tokens,
+        rawResponse: fullResponse // Keep for debugging
       };
     } catch (error) {
       console.error('OpenAI API error:', error);
       throw error;
     }
+  }
+
+  // Parse structured response from LLM containing both natural answer and XML data
+  parseStructuredResponse(fullResponse) {
+    try {
+      // Extract the answer section
+      const answerMatch = fullResponse.match(/\*\*ANSWER:\*\*\s*([\s\S]*?)(?:\*\*STRUCTURED_DATA:\*\*|$)/i);
+      const answer = answerMatch ? answerMatch[1].trim() : fullResponse;
+
+      // Extract the structured data section
+      const structuredMatch = fullResponse.match(/\*\*STRUCTURED_DATA:\*\*\s*([\s\S]*?)(?:\*\*[A-Z_]+:\*\*|$)/i);
+      let structuredData = null;
+
+      if (structuredMatch) {
+        const xmlContent = structuredMatch[1].trim();
+        structuredData = this.parseXMLRequirements(xmlContent);
+      }
+
+      return {
+        answer,
+        structuredData
+      };
+    } catch (error) {
+      console.error('Error parsing structured response:', error);
+      // Fallback: return the full response as answer
+      return {
+        answer: fullResponse,
+        structuredData: null
+      };
+    }
+  }
+
+  // Parse XML requirements structure
+  parseXMLRequirements(xmlContent) {
+    try {
+      // Extract requirements blocks
+      const requirementMatches = xmlContent.match(/<requirement>([\s\S]*?)<\/requirement>/g);
+      
+      if (!requirementMatches) {
+        return null;
+      }
+
+      const requirements = requirementMatches.map(reqMatch => {
+        const content = reqMatch.replace(/<\/?requirement>/g, '');
+        
+        // Extract fields from the requirement
+        const title = this.extractXMLField(content, 'title');
+        const authority = this.extractXMLField(content, 'authority');
+        const description = this.extractXMLField(content, 'description');
+        const jurisdictionLevel = this.extractXMLField(content, 'jurisdiction_level');
+        const priority = this.extractXMLField(content, 'priority');
+
+        // Extract actions
+        const actionMatches = content.match(/<action[^>]*>([\s\S]*?)<\/action>/g) || [];
+        const actions = actionMatches.map((actionMatch, index) => {
+          const actionContent = actionMatch.match(/<action[^>]*>([\s\S]*?)<\/action>/)[1];
+          const stepMatch = actionMatch.match(/step="(\d+)"/);
+          const linkMatch = actionMatch.match(/link="([^"]*)"/);
+          
+          return {
+            step: stepMatch ? parseInt(stepMatch[1]) : index + 1,
+            desc: actionContent.trim(),
+            link: linkMatch ? linkMatch[1] : undefined
+          };
+        });
+
+        // Extract notes
+        const noteMatches = content.match(/<note>([\s\S]*?)<\/note>/g) || [];
+        const notes = noteMatches.map(noteMatch => {
+          return noteMatch.replace(/<\/?note>/g, '').trim();
+        });
+
+        return {
+          title: title || 'Requirement',
+          authority: authority || 'Government Authority',
+          description: description,
+          actions: actions.length > 0 ? actions : [{
+            step: 1,
+            desc: 'Contact the relevant authority for requirements',
+            link: undefined
+          }],
+          notes: notes.length > 0 ? notes : ['Verify current requirements with the relevant authority'],
+          jurisdiction_level: jurisdictionLevel || 'unknown',
+          priority: priority || 'medium'
+        };
+      });
+
+      return requirements;
+    } catch (error) {
+      console.error('Error parsing XML requirements:', error);
+      return null;
+    }
+  }
+
+  // Helper method to extract XML field content
+  extractXMLField(content, fieldName) {
+    const regex = new RegExp(`<${fieldName}>(.*?)<\/${fieldName}>`, 'is');
+    const match = content.match(regex);
+    return match ? match[1].trim() : null;
   }
 }
 
@@ -2110,6 +2300,86 @@ app.post('/api/preseed-permits', async (req, res) => {
   }
 });
 
+// IP-based location detection endpoint
+app.get('/api/location/detect', async (req, res) => {
+  try {
+    // Get client IP address
+    const clientIP = req.headers['x-forwarded-for'] || 
+                     req.connection.remoteAddress || 
+                     req.socket.remoteAddress ||
+                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    
+    // Skip localhost/private IPs
+    if (!clientIP || clientIP === '::1' || clientIP.startsWith('127.') || clientIP.startsWith('192.168.') || clientIP.startsWith('10.')) {
+      return res.json({
+        success: true,
+        location: {
+          city: 'Brisbane',
+          state: 'QLD',
+          country: 'Australia',
+          detected: false,
+          source: 'default'
+        }
+      });
+    }
+
+    // Use ipapi.co (free tier: 1000 requests/day)
+    const locationResponse = await fetch(`https://ipapi.co/${clientIP}/json/`);
+    const locationData = await locationResponse.json();
+    
+    if (locationData.error) {
+      throw new Error(locationData.reason || 'Location detection failed');
+    }
+
+    // Map to Australian format
+    let city = locationData.city || 'Unknown';
+    let state = locationData.region_code || '';
+    let country = locationData.country_name || '';
+    
+    // Australian state code mapping
+    const australianStates = {
+      'NSW': 'NSW', 'New South Wales': 'NSW',
+      'VIC': 'VIC', 'Victoria': 'VIC', 
+      'QLD': 'QLD', 'Queensland': 'QLD',
+      'WA': 'WA', 'Western Australia': 'WA',
+      'SA': 'SA', 'South Australia': 'SA',
+      'TAS': 'TAS', 'Tasmania': 'TAS',
+      'NT': 'NT', 'Northern Territory': 'NT',
+      'ACT': 'ACT', 'Australian Capital Territory': 'ACT'
+    };
+
+    if (country === 'Australia' && australianStates[locationData.region]) {
+      state = australianStates[locationData.region];
+    }
+
+    res.json({
+      success: true,
+      location: {
+        city,
+        state,
+        country,
+        detected: true,
+        source: 'ip',
+        raw: locationData
+      }
+    });
+    
+  } catch (error) {
+    console.error('Location detection error:', error);
+    res.json({
+      success: true,
+      location: {
+        city: 'Brisbane',
+        state: 'QLD',
+        country: 'Australia',
+        detected: false,
+        source: 'fallback',
+        error: error.message
+      }
+    });
+  }
+});
+
 // Ask question endpoint with real-time event tracking
 app.post('/api/legal/ask', async (req, res) => {
   const startTime = Date.now();
@@ -2158,8 +2428,39 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
+    // Extract location from question if not provided in context
+    let location = context?.location;
+    if (!location) {
+      eventTracker.addEvent('location_extraction_start', 'Extracting location from question text');
+      location = await extractLocationFromQuestion(question);
+      eventTracker.addEvent('location_extraction_complete', 'Location extraction complete', { 
+        extracted_location: location,
+        source: 'question_analysis'
+      });
+    }
+
+    // Check if question needs clarification
+    eventTracker.addEvent('clarification_check_start', 'Checking if question needs clarification');
+    const clarificationCheck = await checkNeedsClarification(question);
+    
+    if (clarificationCheck.needs_clarification) {
+      eventTracker.addEvent('clarification_needed', 'Question needs clarification', clarificationCheck);
+      eventTracker.complete(true, 'Clarification questions generated');
+      return res.json({
+        success: true,
+        needs_clarification: true,
+        clarification_questions: clarificationCheck.questions,
+        suggested_details: clarificationCheck.suggested_details,
+        reason: clarificationCheck.reason,
+        queryId,
+        events: eventTracker.getEvents(),
+        executionTime: Date.now() - startTime
+      });
+    }
+
+    eventTracker.addEvent('clarification_check_complete', 'No clarification needed, proceeding with query');
+
     // Find relevant documents OR discover them on-the-fly
-    const location = context?.location;
     eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { location });
     let relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
     
@@ -2279,6 +2580,7 @@ app.post('/api/legal/ask', async (req, res) => {
     const finalResult = {
       success: true,
       answer: aiResponse.answer,
+      structured_data: aiResponse.structuredData || null,
       sources,
       deep_links: deepLinks,
       confidence: 0.9,
@@ -2412,6 +2714,140 @@ wss.on('connection', (ws) => {
 });
 
 // Start server with database initialization
+// Extract location information from user question using LLM
+async function extractLocationFromQuestion(question) {
+  try {
+    const prompt = `Analyze this question and extract any Australian location information (city, state, suburb, or region). 
+    
+Question: "${question}"
+
+Instructions:
+- Look for Australian cities, suburbs, states, or regions mentioned
+- Return the most specific location found
+- If multiple locations, return the primary one
+- Use standard Australian state abbreviations (NSW, VIC, QLD, WA, SA, TAS, NT, ACT)
+- If no location found, return null
+
+Respond in this JSON format:
+{
+  "location_found": true/false,
+  "city": "city name or null",
+  "state": "state code or null", 
+  "raw_text": "original location text found"
+}`;
+
+    const response = await fetch(openRouterBaseUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3-haiku:beta',
+        messages: [{
+          role: 'user',
+          content: prompt
+        }],
+        max_tokens: 200,
+        temperature: 0.1
+      })
+    });
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    if (content) {
+      try {
+        const locationData = JSON.parse(content);
+        if (locationData.location_found && locationData.city && locationData.state) {
+          return `${locationData.city}, ${locationData.state}`;
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse location extraction response:', parseError);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting location from question:', error);
+    return null;
+  }
+}
+
+// Check if a question needs clarification using LLM
+async function checkNeedsClarification(question) {
+  try {
+    const prompt = `Analyze this legal/business question to determine if it needs clarification to provide accurate advice.
+
+Question: "${question}"
+
+Consider these scenarios that need clarification:
+- Vague business types (e.g., "factory" without specifying what type)
+- Missing location information for location-specific regulations
+- Ambiguous activity descriptions
+- Missing scale/size information that affects regulations
+- Unclear timeline or urgency
+
+Respond in this JSON format:
+{
+  "needs_clarification": true/false,
+  "reason": "brief explanation of why clarification is needed",
+  "questions": ["What type of factory?", "What will you be manufacturing?"],
+  "suggested_details": ["Business type", "Location", "Scale of operation"]
+}`;
+
+    const response = await fetch(openRouterBaseUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3-haiku:beta',
+        messages: [{
+          role: 'user',
+          content: prompt
+        }],
+        max_tokens: 300,
+        temperature: 0.1
+      })
+    });
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    
+    if (content) {
+      try {
+        const clarificationData = JSON.parse(content);
+        return {
+          needs_clarification: clarificationData.needs_clarification || false,
+          reason: clarificationData.reason || '',
+          questions: clarificationData.questions || [],
+          suggested_details: clarificationData.suggested_details || []
+        };
+      } catch (parseError) {
+        console.warn('Failed to parse clarification check response:', parseError);
+      }
+    }
+    
+    // Default to no clarification needed if parsing fails
+    return {
+      needs_clarification: false,
+      reason: 'Unable to determine clarification needs',
+      questions: [],
+      suggested_details: []
+    };
+  } catch (error) {
+    console.error('Error checking clarification needs:', error);
+    return {
+      needs_clarification: false,
+      reason: 'Error checking clarification needs',
+      questions: [],
+      suggested_details: []
+    };
+  }
+}
+
 async function startServer() {
   // Initialize database first
   await initializeDatabase();
