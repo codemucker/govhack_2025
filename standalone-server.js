@@ -783,7 +783,7 @@ class AustLIIDiscovery {
     deepLinks.push(...permitLinks);
     
     // Add regulatory authority links
-    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas);
+    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas, '');
     deepLinks.push(...authorityLinks);
     
     return deepLinks;
@@ -839,12 +839,18 @@ class AustLIIDiscovery {
   }
   
   // Generate regulatory authority contact links
-  generateAuthorityLinks(jurisdiction, legal_areas) {
+  generateAuthorityLinks(jurisdiction, legal_areas, originalQuestion = '') {
     const authorityLinks = [];
     const jurisdictionData = this.getJurisdictionData(jurisdiction);
     
-    // Food safety authorities
-    if (legal_areas.some(area => area.includes('food'))) {
+    console.log(`🏛️ Generating authority links for ${jurisdiction} with legal areas: ${legal_areas.join(', ')}`);
+    console.log(`🔍 Original question: "${originalQuestion}"`);
+    
+    // Food safety authorities - only if actually related to food
+    const needsFoodAuthority = legal_areas.some(area => area.includes('food')) ||
+                              originalQuestion.toLowerCase().includes('food');
+    console.log(`🍕 Food authority needed: ${needsFoodAuthority}`);
+    if (needsFoodAuthority) {
       authorityLinks.push({
         type: 'regulatory_authority',
         title: jurisdictionData.foodAuthority,
@@ -859,33 +865,56 @@ class AustLIIDiscovery {
       });
     }
     
-    // Business support services
-    authorityLinks.push({
-      type: 'regulatory_authority',
-      title: 'Business Support Services',
-      description: 'Get help with business permits and regulations',
-      url: jurisdictionData.businessSupportUrl,
-      authority: 'Business Support',
-      jurisdiction: jurisdiction.toUpperCase(),
-      contact_type: 'business_support',
-      phone: jurisdictionData.businessSupportPhone,
-      email: jurisdictionData.businessSupportEmail,
-      chatbot: jurisdictionData.businessSupportChatbot
-    });
+    // Business support services - only for actual business-related queries
+    const needsBusinessSupport = (legal_areas.some(area => area.includes('business') || area.includes('commercial') || area.includes('licensing')) ||
+                                 originalQuestion.toLowerCase().includes('business') || 
+                                 originalQuestion.toLowerCase().includes('license') ||
+                                 originalQuestion.toLowerCase().includes('permit')) &&
+                                 !originalQuestion.toLowerCase().includes('dispute'); // Exclude disputes
+    console.log(`💼 Business support needed: ${needsBusinessSupport}`);
+    if (needsBusinessSupport) {
+      authorityLinks.push({
+        type: 'regulatory_authority',
+        title: 'Business Support Services',
+        description: 'Get help with business permits and regulations',
+        url: jurisdictionData.businessSupportUrl,
+        authority: 'Business Support',
+        jurisdiction: jurisdiction.toUpperCase(),
+        contact_type: 'business_support',
+        phone: jurisdictionData.businessSupportPhone,
+        email: jurisdictionData.businessSupportEmail,
+        chatbot: jurisdictionData.businessSupportChatbot
+      });
+    }
     
-    // Local council
-    authorityLinks.push({
-      type: 'regulatory_authority',
-      title: `${jurisdiction} Council Services`,
-      description: `Contact ${jurisdiction} Council for permits and approvals`,
-      url: jurisdictionData.localCouncilUrl,
-      authority: `${jurisdiction} Council`,
-      jurisdiction: jurisdiction.toUpperCase(),
-      contact_type: 'council',
-      phone: jurisdictionData.localCouncilPhone,
-      email: jurisdictionData.localCouncilEmail,
-      chatbot: jurisdictionData.localCouncilChatbot
-    });
+    // Local council - for property, planning, dispute matters
+    const needsCouncilSupport = legal_areas.some(area => 
+      area.includes('local government') || 
+      area.includes('property') || 
+      area.includes('development') || 
+      area.includes('planning') ||
+      area.includes('residential') ||
+      area.includes('dispute resolution') ||
+      area.includes('neighbourhood')
+    ) || originalQuestion.toLowerCase().includes('council') ||
+         originalQuestion.toLowerCase().includes('fence') ||
+         originalQuestion.toLowerCase().includes('boundary') ||
+         originalQuestion.toLowerCase().includes('dispute');
+    console.log(`🏛️ Council support needed: ${needsCouncilSupport}`);
+    if (needsCouncilSupport) {
+      authorityLinks.push({
+        type: 'regulatory_authority',
+        title: `${jurisdiction} Council Services`,
+        description: `Contact ${jurisdiction} Council for permits and approvals`,
+        url: jurisdictionData.localCouncilUrl,
+        authority: `${jurisdiction} Council`,
+        jurisdiction: jurisdiction.toUpperCase(),
+        contact_type: 'council',
+        phone: jurisdictionData.localCouncilPhone,
+        email: jurisdictionData.localCouncilEmail,
+        chatbot: jurisdictionData.localCouncilChatbot
+      });
+    }
     
     return authorityLinks;
   }
@@ -1127,12 +1156,16 @@ class AustLIIDiscovery {
     const potentialLinks = [];
     const lowerQuestion = question.toLowerCase();
     
+    console.log(`🔍 generatePotentialLinks called with legal_areas: ${legal_areas.join(', ')}`);
+    
     // Generate permit/license application links based on question content
     const permitLinks = this.generatePermitLinks(question, jurisdiction, legal_areas);
     potentialLinks.push(...permitLinks);
     
     // Generate authority contact links
-    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas);
+    console.log('🔧 About to generate authority links...');
+    const authorityLinks = this.generateAuthorityLinks(jurisdiction, legal_areas, question);
+    console.log(`🔧 Generated ${authorityLinks.length} authority links`);
     potentialLinks.push(...authorityLinks);
     
     // Generate document-specific links (sections, chapters)
@@ -1172,14 +1205,25 @@ class AustLIIDiscovery {
       }
     }
     
-    // Always include regulatory authority contacts for user convenience
+    // Include regulatory authority contacts only if they are relevant to the response content
     const authorityLinks = potentialLinks.filter(link => 
       link.type === 'regulatory_authority'
     );
     
-    // Add authority links that aren't already included
+    // Only add authority links that are specifically mentioned or highly relevant
     for (const authorityLink of authorityLinks) {
-      if (!usedLinks.find(link => link.url === authorityLink.url)) {
+      const responseText = aiResponse.toLowerCase();
+      const authorityName = authorityLink.authority.toLowerCase();
+      
+      // Include if the authority is mentioned in the response or highly relevant
+      const isRelevant = responseText.includes(authorityName.split(' ')[0]) ||
+                        (responseText.includes('council') && authorityLink.contact_type === 'council') ||
+                        (responseText.includes('business') && authorityLink.contact_type === 'business_support') ||
+                        (responseText.includes('food') && authorityLink.contact_type === 'food_safety');
+      
+      console.log(`📊 Authority relevance check: ${authorityLink.authority} (${authorityLink.contact_type}) - Relevant: ${isRelevant}`);
+      
+      if (isRelevant && !usedLinks.find(link => link.url === authorityLink.url)) {
         usedLinks.push(authorityLink);
       }
     }
