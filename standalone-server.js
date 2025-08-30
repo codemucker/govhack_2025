@@ -3553,7 +3553,7 @@ app.get('/api/legal/history', async (req, res) => {
 });
 
 // Start server with WebSocket support
-const PORT = process.env.PORT || 4003;
+const PORT = process.env.PORT || 4000;
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
@@ -3693,6 +3693,8 @@ async function translateToEnglish(question, assumedLanguage) {
 
 // Translate response from English back to user's language
 async function translateResponse(englishResponse, toLanguage) {
+  console.log(`🔍 translateResponse called with toLanguage: ${toLanguage}`);
+  console.log(`🔍 englishResponse type: ${typeof englishResponse}`);
   if (toLanguage === 'en') return englishResponse;
   
   try {
@@ -3759,16 +3761,21 @@ async function translateResponse(englishResponse, toLanguage) {
     });
 
     const result = await response.json();
+    console.log(`🔍 Response translation API status: ${response.status}`);
+    console.log(`🔍 Response translation API result:`, JSON.stringify(result, null, 2));
     const translatedAnswer = result.choices?.[0]?.message?.content?.trim();
+    console.log(`🔍 Response translated answer:`, translatedAnswer);
     
     // Return the response in the same format as received
     if (typeof englishResponse === 'object') {
+      console.log(`🔍 Returning object format with translated answer`);
       return {
         ...englishResponse,
         answer: translatedAnswer || englishResponse.answer
       };
     }
     
+    console.log(`🔍 Returning string format: ${translatedAnswer || englishResponse}`);
     return translatedAnswer || englishResponse;
     
   } catch (error) {

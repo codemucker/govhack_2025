@@ -26,13 +26,13 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:4003',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         secure: false
       },
       // Proxy WebSocket connections to the root path
       '^/ws': {
-        target: 'ws://localhost:4003/',
+        target: 'ws://localhost:4000/',
         ws: true,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ws/, '')
