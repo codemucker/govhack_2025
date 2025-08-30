@@ -7,6 +7,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { PersistentDatabase } from './persistent-database.js';
@@ -1735,6 +1736,7 @@ class StandaloneOpenAIClient {
       throw new Error('OPENAI_API_KEY environment variable is required');
     }
 
+    // Always process in English - translation happens elsewhere
     // Build deep links section for the prompt
     const deepLinksText = deepLinks.length > 0 ? 
       `\nAVAILABLE LINKS TO EMBED IN YOUR RESPONSE:
@@ -1778,7 +1780,7 @@ REQUIRED FORMAT:
 </requirements>
 
 INSTRUCTIONS:
-- Answer in Australian English using Australian legal terminology
+- Answer in clear, professional Australian English using Australian legal terminology
 - Base your answer ONLY on the provided legal documents
 - Include specific references to which acts or regulations you're citing
 - Extract each permit/license/requirement as a separate <requirement> in the XML
@@ -1817,7 +1819,7 @@ You MUST provide both the **ANSWER:** section and **STRUCTURED_DATA:** section.`
           messages: [
             {
               role: 'system',
-              content: 'You are an Australian legal research assistant. Provide accurate, helpful information based solely on the provided legal documents. Always include appropriate disclaimers about seeking professional legal advice.'
+              content: 'You are an Australian legal research assistant. Provide accurate, helpful information based solely on the provided legal documents in clear Australian English. Always include appropriate disclaimers about seeking professional legal advice.'
             },
             {
               role: 'user',
@@ -2075,6 +2077,42 @@ app.use((req, res, next) => {
     next();
   }
 });
+
+// Serve static frontend files with proper configuration
+// Try to serve built files first, fallback to development files
+const distPath = join(__dirname, 'frontend/dist');
+const devPath = join(__dirname, 'frontend');
+
+if (existsSync(distPath)) {
+  console.log('📂 Serving frontend from dist/ (production build)');
+  app.use(express.static(distPath, {
+    maxAge: '1h',
+    etag: false,
+    setHeaders: (res, path) => {
+      if (path.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      }
+      if (path.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      }
+      if (path.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      }
+    }
+  }));
+} else if (existsSync(devPath)) {
+  console.log('📂 Serving frontend from frontend/ (development files)');
+  app.use(express.static(devPath, {
+    etag: false,
+    setHeaders: (res, path) => {
+      if (path.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      }
+    }
+  }));
+} else {
+  console.warn('⚠️  No frontend files found - will serve fallback page');
+}
 
 // Health check endpoint
 app.get('/api/hello', (req, res) => {
@@ -2390,7 +2428,7 @@ app.post('/api/legal/ask', async (req, res) => {
   activeQueries.set(queryId, eventTracker);
 
   try {
-    const { question, sessionId, userLocale, context } = req.body;
+    const { question, sessionId, userLocale, context, bypassClarification } = req.body;
     
     eventTracker.addEvent('query_received', 'Query received and processing started', { question, sessionId, userLocale, context });
     
@@ -2405,10 +2443,45 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
-    // NEW: Check question relevance using LLM
+    // FIRST: Detect query language and translate to English if needed for all processing
+    const queryLanguage = detectQueryLanguage(question);
+    const needsTranslation = queryLanguage !== 'en';
+    const userResponseLanguage = queryLanguage !== 'en' ? queryLanguage : (userLocale ? userLocale.split('-')[0] : 'en');
+    
+    eventTracker.addEvent('language_detection', `Query language: ${queryLanguage}, Response language: ${userResponseLanguage}`, { 
+      queryLanguage, 
+      userResponseLanguage,
+      needsTranslation,
+      browserLocale: userLocale 
+    });
+
+    let processedQuestion = question;
+    let finalLanguage = queryLanguage;
+    if (needsTranslation) {
+      eventTracker.addEvent('translation_start', 'Translating query to English for processing');
+      const translationResult = await translateToEnglish(question, queryLanguage);
+      processedQuestion = translationResult.translatedQuestion;
+      finalLanguage = translationResult.detectedLanguage;
+      
+      eventTracker.addEvent('translation_complete', `Query translated to English: "${processedQuestion}"`, {
+        assumedLanguage: queryLanguage,
+        detectedLanguage: finalLanguage,
+        languageMatches: queryLanguage === finalLanguage
+      });
+
+      // Retry if detected language differs significantly from assumed language
+      if (queryLanguage !== finalLanguage && finalLanguage !== 'en') {
+        eventTracker.addEvent('language_mismatch', `Language mismatch detected: assumed ${queryLanguage}, but LLM detected ${finalLanguage}. Retrying translation.`);
+        const retryResult = await translateToEnglish(question, finalLanguage);
+        processedQuestion = retryResult.translatedQuestion;
+        eventTracker.addEvent('translation_retry_complete', `Retry translation completed: "${processedQuestion}"`);
+      }
+    }
+
+    // NEW: Check question relevance using LLM (now on English question)
     eventTracker.addEvent('relevance_check_start', 'Checking if question is relevant to Australian legal services');
     const queryAnalyzer = new QueryAnalyzer();
-    const relevanceCheck = await queryAnalyzer.isQuestionRelevant(question);
+    const relevanceCheck = await queryAnalyzer.isQuestionRelevant(processedQuestion);
     
     eventTracker.addEvent('relevance_check_complete', `Relevance check complete: ${relevanceCheck.relevant ? 'relevant' : 'not relevant'}`, {
       relevant: relevanceCheck.relevant,
@@ -2439,30 +2512,34 @@ app.post('/api/legal/ask', async (req, res) => {
       });
     }
 
-    // Check if question needs clarification
-    eventTracker.addEvent('clarification_check_start', 'Checking if question needs clarification');
-    const clarificationCheck = await checkNeedsClarification(question);
-    
-    if (clarificationCheck.needs_clarification) {
-      eventTracker.addEvent('clarification_needed', 'Question needs clarification', clarificationCheck);
-      eventTracker.complete(true, 'Clarification questions generated');
-      return res.json({
-        success: true,
-        needs_clarification: true,
-        clarification_questions: clarificationCheck.questions,
-        suggested_details: clarificationCheck.suggested_details,
-        reason: clarificationCheck.reason,
-        queryId,
-        events: eventTracker.getEvents(),
-        executionTime: Date.now() - startTime
-      });
+    // Check if question needs clarification (use translated question) - unless bypassed
+    if (!bypassClarification) {
+      eventTracker.addEvent('clarification_check_start', 'Checking if question needs clarification');
+      const clarificationCheck = await checkNeedsClarification(processedQuestion);
+      
+      if (clarificationCheck.needs_clarification) {
+        eventTracker.addEvent('clarification_needed', 'Question needs clarification', clarificationCheck);
+        eventTracker.complete(true, 'Clarification questions generated');
+        return res.json({
+          success: true,
+          needs_clarification: true,
+          clarification_questions: clarificationCheck.questions,
+          suggested_details: clarificationCheck.suggested_details,
+          reason: clarificationCheck.reason,
+          queryId,
+          events: eventTracker.getEvents(),
+          executionTime: Date.now() - startTime
+        });
+      }
+      
+      eventTracker.addEvent('clarification_check_complete', 'No clarification needed, proceeding with query');
+    } else {
+      eventTracker.addEvent('clarification_bypassed', 'Clarification check bypassed by user request');
     }
-
-    eventTracker.addEvent('clarification_check_complete', 'No clarification needed, proceeding with query');
 
     // Find relevant documents OR discover them on-the-fly
     eventTracker.addEvent('document_search_init', 'Initializing document search and discovery', { location });
-    let relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
+    let relevantDocs = await documentFetcher.findOrDiscoverDocuments(processedQuestion, location, 3, eventTracker);
     
     // If no documents found, try intelligent failure handling
     if (relevantDocs.length === 0 && failureHandler) {
@@ -2472,7 +2549,7 @@ app.post('/api/legal/ask', async (req, res) => {
       
       if (recoveryResult.success && recoveryResult.canAnswerNow) {
         // Re-attempt document discovery after intelligent recovery
-        relevantDocs = await documentFetcher.findOrDiscoverDocuments(question, location, 3, eventTracker);
+        relevantDocs = await documentFetcher.findOrDiscoverDocuments(processedQuestion, location, 3, eventTracker);
         eventTracker.addEvent('intelligent_recovery_success', `Intelligent recovery successful: found ${relevantDocs.length} documents`);
       } else {
         eventTracker.addEvent('intelligent_recovery_failed', 'Intelligent recovery could not find relevant documents');
@@ -2480,13 +2557,30 @@ app.post('/api/legal/ask', async (req, res) => {
     }
     
     if (relevantDocs.length === 0) {
-      eventTracker.complete(false, 'No relevant documents could be found even after intelligent recovery');
+      // TEMPORARY: For testing translation workflow, provide fallback response
+      eventTracker.addEvent('fallback_response', 'No documents found, providing fallback response for translation testing');
+      
+      // Provide a basic fallback response in English (using already translated processedQuestion)
+      let englishResponse = `I apologize, but I don't have specific legal documents available to answer your question about "${processedQuestion}". For accurate legal advice in Australia, I recommend consulting with a qualified Australian legal professional or visiting official government websites like business.gov.au or your state's government website.`;
+
+      // Translate response back to user's language if needed
+      let finalResponse = englishResponse;
+      if (needsTranslation && userResponseLanguage !== 'en') {
+        eventTracker.addEvent('response_translation_start', `Translating response to ${userResponseLanguage}`);
+        finalResponse = await translateResponse(englishResponse, userResponseLanguage);
+        eventTracker.addEvent('response_translation_complete', 'Response translated to user language');
+      }
+
+      eventTracker.complete(true, 'Fallback response provided with translation testing');
       return res.json({
-        success: false,
-        error: 'No relevant legal documents could be found or discovered. The system attempted to discover documents from AustLII and used intelligent recovery, but none were available or relevant to your question.',
+        success: true,
+        answer: finalResponse,
+        sources: [],
         queryId,
+        confidence: 0.3,
         events: eventTracker.getEvents(),
-        executionTime: Date.now() - startTime
+        executionTime: Date.now() - startTime,
+        fallback: true
       });
     }
 
@@ -2510,10 +2604,23 @@ app.post('/api/legal/ask', async (req, res) => {
         ['licence', 'permit', 'registration'] // Fallback keywords
       ) : [];
 
-    // Generate AI response with embedded links
-    eventTracker.addEvent('ai_generation_start', 'Starting AI response generation', { documentCount: relevantDocs.length, potentialLinks: potentialDeepLinks.length });
-    const aiResponse = await openaiClient.generateAnswer(question, docContext, userLocale, potentialDeepLinks);
-    eventTracker.addEvent('ai_generation_complete', 'AI response generated successfully');
+    // Generate AI response in English (optimized prompts, using already translated processedQuestion)
+    eventTracker.addEvent('ai_generation_start', 'Starting AI response generation in English', { 
+      documentCount: relevantDocs.length, 
+      potentialLinks: potentialDeepLinks.length,
+      originalLanguage: queryLanguage,
+      translatedQuery: processedQuestion !== question
+    });
+    const englishResponse = await openaiClient.generateAnswer(processedQuestion, docContext, 'en-AU', potentialDeepLinks);
+    eventTracker.addEvent('ai_generation_complete', 'English AI response generated successfully');
+
+    // Translate response back to user's language if needed
+    let finalResponse = englishResponse;
+    if (needsTranslation && userResponseLanguage !== 'en') {
+      eventTracker.addEvent('response_translation_start', `Translating response to ${userResponseLanguage}`);
+      finalResponse = await translateResponse(englishResponse, userResponseLanguage);
+      eventTracker.addEvent('response_translation_complete', 'Response translated to user language');
+    }
 
     // Prepare sources with scoring information
     eventTracker.addEvent('response_preparation', 'Preparing final response with sources and scores', { sourceCount: relevantDocs.slice(0, 3).length });
@@ -2579,8 +2686,8 @@ app.post('/api/legal/ask', async (req, res) => {
 
     const finalResult = {
       success: true,
-      answer: aiResponse.answer,
-      structured_data: aiResponse.structuredData || null,
+      answer: finalResponse.answer || finalResponse,
+      structured_data: finalResponse.structuredData || aiResponse.structuredData || null,
       sources,
       deep_links: deepLinks,
       confidence: 0.9,
@@ -2713,10 +2820,200 @@ wss.on('connection', (ws) => {
   });
 });
 
+// Enhanced translation with LLM-verified language detection
+async function translateToEnglish(question, assumedLanguage) {
+  if (assumedLanguage === 'en') return { translatedQuestion: question, detectedLanguage: 'en' };
+  
+  try {
+    const isOpenRouter = process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1';
+    
+    if (!apiKey) {
+      console.warn('No API key available for translation, using original question');
+      return { translatedQuestion: question, detectedLanguage: assumedLanguage };
+    }
+
+    const model = isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    };
+
+    if (isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://govhack2025.com';
+      headers['X-Title'] = 'LegalEase - Query Translation';
+    }
+
+    const response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a translator for legal questions. Your task:\n1. Detect the actual language of the input text\n2. Translate to Australian English if needed\n3. Preserve legal terminology and intent\n\nResponse format:\n<language>detected_language_code</language>\n<translation>translated_text_or_original_if_english</translation>'
+          },
+          {
+            role: 'user',
+            content: `Input text: "${question}"`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 300
+      })
+    });
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content?.trim();
+    
+    if (!content) {
+      console.error('Translation API returned empty content');
+      return { translatedQuestion: question, detectedLanguage: assumedLanguage };
+    }
+
+    // Parse XML response
+    const languageMatch = content.match(/<language>([^<]+)<\/language>/);
+    const translationMatch = content.match(/<translation>([^<]+)<\/translation>/);
+    
+    const detectedLanguage = languageMatch ? languageMatch[1].toLowerCase() : assumedLanguage;
+    const translatedQuestion = translationMatch ? translationMatch[1] : question;
+    
+    console.log(`🔄 Translation: "${question}" (${assumedLanguage} → ${detectedLanguage}) → "${translatedQuestion}"`);
+    
+    return { translatedQuestion, detectedLanguage };
+    
+  } catch (error) {
+    console.error('Translation to English failed:', error);
+    return { translatedQuestion: question, detectedLanguage: assumedLanguage };
+  }
+}
+
+// Translate response from English back to user's language
+async function translateResponse(englishResponse, toLanguage) {
+  if (toLanguage === 'en') return englishResponse;
+  
+  try {
+    const isOpenRouter = process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1';
+    
+    if (!apiKey) {
+      console.warn('No API key available for response translation, using English response');
+      return englishResponse;
+    }
+
+    // Language name mapping for better translation quality
+    const languageNames = {
+      'zh': 'Chinese (Simplified)',
+      'es': 'Spanish',
+      'ar': 'Arabic',
+      'hi': 'Hindi',
+      'vi': 'Vietnamese',
+      'ko': 'Korean',
+      'fr': 'French',
+      'de': 'German',
+      'ja': 'Japanese',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ru': 'Russian'
+    };
+
+    const targetLanguage = languageNames[toLanguage] || toLanguage;
+    const model = isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    };
+
+    if (isOpenRouter) {
+      headers['HTTP-Referer'] = 'https://govhack2025.com';
+      headers['X-Title'] = 'LegalEase - Response Translation';
+    }
+
+    // Extract just the answer part for translation
+    const answerText = typeof englishResponse === 'object' ? englishResponse.answer : englishResponse;
+
+    const response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional legal translator. Translate Australian legal advice to ${targetLanguage}, preserving all legal terms, URLs, and formatting. Keep legal disclaimers, specific acts, and regulatory references accurate. Return only the translated text.`
+          },
+          {
+            role: 'user',
+            content: `Translate this Australian legal advice to ${targetLanguage}:\n\n${answerText}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 1500
+      })
+    });
+
+    const result = await response.json();
+    const translatedAnswer = result.choices?.[0]?.message?.content?.trim();
+    
+    // Return the response in the same format as received
+    if (typeof englishResponse === 'object') {
+      return {
+        ...englishResponse,
+        answer: translatedAnswer || englishResponse.answer
+      };
+    }
+    
+    return translatedAnswer || englishResponse;
+    
+  } catch (error) {
+    console.error('Response translation failed:', error);
+    return englishResponse; // Fallback to English
+  }
+}
+
+// Detect language of the question using simple pattern matching
+function detectQueryLanguage(question) {
+  // Simple pattern-based language detection - order matters for overlapping patterns
+  const patterns = {
+    'zh': /[\u4e00-\u9fff]/, // Chinese characters
+    'ar': /[\u0600-\u06ff\u0750-\u077f]/, // Arabic and extended Arabic
+    'hi': /[\u0900-\u097f]/, // Devanagari (Hindi)
+    'ko': /[\uac00-\ud7af]/, // Korean
+    'es': /[ñ¿¡]|(?:\b(?:el|la|los|las|un|una|y|o|del|de|que|es|en|con|por|para|se|te|me|le|su|sus|mi|mis|tu|tus|no|si|qué|cómo|dónde|cuándo|quién|por qué)\b)/, // Spanish specific: ñ, inverted punctuation, common words
+    'vi': /[ạảãâầấậẩẫăằắặẳẵẹẻẽêềếệểễịỉĩọỏõôồốộổỗơờớợởỡụủũưừứựửữỵỷỹđ]/, // Vietnamese specific diacritics
+    'fr': /[àâäêëïîôöùûüÿç]/, // French specific characters
+    'de': /[äöüß]/, // German specific characters
+    'it': /[àèìíîòóù]/, // Italian specific characters
+  };
+
+  for (const [lang, pattern] of Object.entries(patterns)) {
+    if (pattern.test(question)) {
+      console.log(`🌐 Detected query language: ${lang}`);
+      return lang;
+    }
+  }
+  
+  console.log('🌐 Query language: English (default)');
+  return 'en';
+}
+
 // Start server with database initialization
 // Extract location information from user question using LLM
 async function extractLocationFromQuestion(question) {
   try {
+    const isOpenRouter = process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1';
+    
+    if (!apiKey) {
+      console.warn('No API key available for location extraction');
+      return null;
+    }
+    
     const prompt = `Analyze this question and extract any Australian location information (city, state, suburb, or region). 
     
 Question: "${question}"
@@ -2736,7 +3033,7 @@ Respond in this JSON format:
   "raw_text": "original location text found"
 }`;
 
-    const response = await fetch(openRouterBaseUrl, {
+    const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -2777,26 +3074,42 @@ Respond in this JSON format:
 // Check if a question needs clarification using LLM
 async function checkNeedsClarification(question) {
   try {
-    const prompt = `Analyze this legal/business question to determine if it needs clarification to provide accurate advice.
+    const isOpenRouter = process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = isOpenRouter ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1';
+    
+    const prompt = `You are helping users who want to know about Australian legal requirements (permits, licenses, zoning, regulations, etc.). 
+
+Analyze this question to determine if you need MORE DETAILS about their BUSINESS/ACTIVITY to identify the right legal requirements.
 
 Question: "${question}"
 
-Consider these scenarios that need clarification:
-- Vague business types (e.g., "factory" without specifying what type)
-- Missing location information for location-specific regulations
-- Ambiguous activity descriptions
-- Missing scale/size information that affects regulations
-- Unclear timeline or urgency
+IMPORTANT RULES:
+- NEVER ask about legal requirements, permits, licenses, or regulations - that's what they came here to find out!
+- ONLY ask for missing business/activity details needed to identify which legal requirements apply
+- Only suggest clarification if the business type or activity is genuinely vague
+
+Examples of GOOD clarification questions:
+- "What type of food will you be serving?" (for food business)
+- "What will you be manufacturing?" (for factory)
+- "What services will you provide?" (for consulting business)
+- "How many employees will you have?" (for business size)
+
+Examples of BAD questions (NEVER ask these):
+- "Do you need permits?" 
+- "Are there zoning requirements?"
+- "What licenses do you need?"
+- "Have you checked regulations?"
 
 Respond in this JSON format:
 {
   "needs_clarification": true/false,
-  "reason": "brief explanation of why clarification is needed",
-  "questions": ["What type of factory?", "What will you be manufacturing?"],
-  "suggested_details": ["Business type", "Location", "Scale of operation"]
+  "reason": "brief explanation of what business details are missing",
+  "questions": ["What type of food will you serve?", "Will this be dine-in or takeaway?"],
+  "suggested_details": ["Food type", "Service style", "Location"]
 }`;
 
-    const response = await fetch(openRouterBaseUrl, {
+    const response = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -2866,6 +3179,61 @@ async function startServer() {
       console.log('👋 Server stopped');
       process.exit(0);
     });
+  });
+
+  // Root route - serve the main frontend page
+  app.get('/', (req, res) => {
+    const distIndexPath = join(__dirname, 'frontend/dist/index.html');
+    const devIndexPath = join(__dirname, 'frontend/index.html');
+    
+    // Set proper content type header
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    
+    // Check if built version exists first
+    if (existsSync(distIndexPath)) {
+      res.sendFile(distIndexPath);
+    } else if (existsSync(devIndexPath)) {
+      res.sendFile(devIndexPath);  
+    } else {
+        // Provide a helpful HTML response if no frontend files exist
+        res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>LegalEase API Server</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+              .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              h1 { color: #2c5aa0; margin-bottom: 20px; }
+              .endpoint { background: #e8f4fd; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; }
+              .note { background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; }
+              .success { color: #28a745; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🏛️ LegalEase API Server</h1>
+              <p class="success">✅ Backend server is running successfully!</p>
+              
+              <h2>🔧 Available API Endpoints:</h2>
+              <div class="endpoint">GET /api/hello</div>
+              <div class="endpoint">POST /api/legal/ask</div>
+              <div class="endpoint">GET /api/cache-documents</div>
+              
+              <div class="note">
+                <strong>📋 Frontend Options:</strong><br>
+                • For development: <code>./start-dev.sh</code> (Frontend on port 3000)<br>
+                • For production: Build frontend first with <code>cd frontend && npm run build</code>
+              </div>
+              
+              <h2>🌐 URLs:</h2>
+              <p><strong>Development Frontend:</strong> <a href="http://localhost:3000">http://localhost:3000</a> (when running dev mode)</p>
+              <p><strong>API Server:</strong> <a href="/api/hello">http://localhost:4000/api/hello</a></p>
+            </div>
+          </body>
+          </html>
+        `);
+    }
   });
 
   // Start the server

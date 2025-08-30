@@ -18,6 +18,7 @@ export class AskQuestionRequest extends BaseRequest<AskQuestionResponse> {
   public context?: {
     location?: string;
   };
+  public bypassClarification?: boolean;
 
   constructor(params: {
     question: string;
@@ -26,12 +27,14 @@ export class AskQuestionRequest extends BaseRequest<AskQuestionResponse> {
     context?: {
       location?: string;
     };
+    bypassClarification?: boolean;
   }) {
     super();
     this.question = params.question;
     this.sessionId = params.sessionId;
     this.userLocale = params.userLocale;
     this.context = params.context;
+    this.bypassClarification = params.bypassClarification;
   }
 }
 
@@ -188,6 +191,7 @@ export class ApiClient {
     context?: {
       location?: string;
     };
+    bypassClarification?: boolean;
     onEvent?: (event: QueryEvent) => void;
   }): Promise<AskQuestionResponse> {
     // Direct call to our standalone server API
@@ -195,7 +199,8 @@ export class ApiClient {
     
     const requestBody = {
       question: params.question,
-      context: params.context || {}
+      context: params.context || {},
+      bypassClarification: params.bypassClarification || false
     };
 
     const response = await fetch(url, {

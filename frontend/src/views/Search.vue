@@ -215,6 +215,10 @@ const suggestedDetails = ref<string[]>([])
 const autoDetectedLocation = ref('')
 const locationDetected = ref(false)
 
+// Locale detection state
+const userLocale = ref('')
+const detectedLanguage = ref('')
+
 // Export state
 const exportDialogOpen = ref(false)
 const exportData = ref<ExportData>({
@@ -336,6 +340,145 @@ const detectUserLocation = async () => {
 }
 
 /**
+ * Detect user's browser locale and preferred language
+ */
+const detectUserLocale = () => {
+  try {
+    // Get browser language preference
+    const browserLang = navigator.language || navigator.languages?.[0] || 'en-US'
+    userLocale.value = browserLang
+    
+    // Extract primary language code (e.g., 'zh' from 'zh-CN', 'en' from 'en-US')
+    const primaryLang = browserLang.split('-')[0].toLowerCase()
+    detectedLanguage.value = primaryLang
+    
+    // Map languages to their full names for display (comprehensive list)
+    const languageNames: Record<string, string> = {
+      // Major world languages
+      'en': 'English',
+      'zh': '中文', 
+      'es': 'Español',
+      'ar': 'العربية',
+      'hi': 'हिन्दी',
+      'fr': 'Français',
+      'de': 'Deutsch',
+      'ja': '日本語',
+      'ko': '한국어',
+      'it': 'Italiano',
+      'pt': 'Português',
+      'ru': 'Русский',
+      'nl': 'Nederlands',
+      'sv': 'Svenska',
+      'no': 'Norsk',
+      'da': 'Dansk',
+      'fi': 'Suomi',
+      'pl': 'Polski',
+      'tr': 'Türkçe',
+      'he': 'עברית',
+      'fa': 'فارسی',
+      'ur': 'اردو',
+      
+      // South and Southeast Asian languages
+      'vi': 'Tiếng Việt',
+      'th': 'ไทย',
+      'id': 'Bahasa Indonesia',
+      'ms': 'Bahasa Melayu',
+      'tl': 'Filipino',
+      'ta': 'தமிழ்',
+      'te': 'తెలుగు',
+      'bn': 'বাংলা',
+      'pa': 'ਪੰਜਾਬੀ',
+      'gu': 'ગુજરાતી',
+      'ml': 'മലയാളം',
+      'kn': 'ಕನ್ನಡ',
+      'or': 'ଓଡ଼ିଆ',
+      'si': 'සිංහල',
+      'my': 'မြန်မာ',
+      'km': 'ខ្មែរ',
+      'lo': 'ລາວ',
+      'ne': 'नेपाली',
+      
+      // East Asian languages  
+      'mn': 'Монгол',
+      'bo': 'བོད་ཡིག',
+      'ug': 'ئۇيغۇرچە',
+      
+      // European languages
+      'uk': 'Українська',
+      'cs': 'Čeština',
+      'sk': 'Slovenčina',
+      'hu': 'Magyar',
+      'ro': 'Română',
+      'bg': 'Български',
+      'hr': 'Hrvatski',
+      'sr': 'Српски',
+      'bs': 'Bosanski',
+      'mk': 'Македонски',
+      'sq': 'Shqip',
+      'sl': 'Slovenščina',
+      'lv': 'Latviešu',
+      'lt': 'Lietuvių',
+      'et': 'Eesti',
+      'is': 'Íslenska',
+      'mt': 'Malti',
+      'ga': 'Gaeilge',
+      'cy': 'Cymraeg',
+      'eu': 'Euskera',
+      'ca': 'Català',
+      'gl': 'Galego',
+      
+      // African languages
+      'sw': 'Kiswahili',
+      'am': 'አማርኛ',
+      'ha': 'Hausa',
+      'yo': 'Yorùbá',
+      'ig': 'Igbo',
+      'zu': 'isiZulu',
+      'af': 'Afrikaans',
+      'xh': 'isiXhosa',
+      'st': 'Sesotho',
+      'tn': 'Setswana',
+      'ss': 'siSwati',
+      'ts': 'Xitsonga',
+      've': 'Tshivenda',
+      'nr': 'isiNdebele',
+      
+      // Americas
+      'qu': 'Runasimi', // Quechua
+      'gn': 'Avañe\'ẽ', // Guarani
+      'ay': 'Aymar aru', // Aymara
+      'nah': 'Nāhuatlahtolli', // Nahuatl
+      
+      // Pacific
+      'mi': 'Te Reo Māori',
+      'haw': 'ʻŌlelo Hawaiʻi',
+      'sm': 'Gagana Samoa',
+      'to': 'Lea faka-Tonga',
+      'fj': 'Na vosa vaka-Viti',
+      
+      // Other significant languages
+      'eo': 'Esperanto',
+      'la': 'Latina',
+      'sa': 'संस्कृतम्',
+      'gd': 'Gàidhlig',
+      'br': 'Brezhoneg',
+      'kw': 'Kernowek',
+      'fo': 'Føroyskt',
+      'rm': 'Rumantsch',
+      'lb': 'Lëtzebuergesch'
+    }
+    
+    console.log(`🌐 Detected locale: ${browserLang} (${languageNames[primaryLang] || primaryLang})`)
+    
+  } catch (error) {
+    console.warn('Failed to detect locale:', error)
+    // Default to English
+    userLocale.value = 'en-US'
+    detectedLanguage.value = 'en'
+  }
+}
+
+/**
  * Handle clarification response - user provides more details
  */
 const handleClarificationResponse = (updatedQuery: string) => {
@@ -371,7 +514,7 @@ const performSearch = async (data: { query: string; address: string }) => {
     
     const response = await apiClient.askLegalQuestion({
       question: data.query,
-      userLocale: 'en-AU',
+      userLocale: userLocale.value || 'en-AU',
       context: {
         location: finalAddress || undefined
       }
@@ -505,8 +648,9 @@ const clearError = () => {
   error.value = ''
 }
 
-// Auto-detect location when component mounts
+// Auto-detect location and locale when component mounts
 onMounted(() => {
+  detectUserLocale()
   detectUserLocation()
 })
 </script>
