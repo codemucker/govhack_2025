@@ -3540,13 +3540,18 @@ app.post('/api/legal/ask', async (req, res) => {
     const firstDoc = relevantDocs.length > 0 ? relevantDocs[0] : null;
     const extractedJurisdiction = firstDoc ? documentFetcher.discovery.extractJurisdictionFromUrl(firstDoc.url) : 'qld';
     
+    // Extract legal areas from the processed question using data-driven taxonomy
+    const analysisResult = documentFetcher.discovery?.createFallbackAnalysis ? 
+      documentFetcher.discovery.createFallbackAnalysis(processedQuestion, jurisdiction) : 
+      { legal_areas: ['general law'], keywords: ['law'] };
+    
     const potentialDeepLinks = documentFetcher.discovery ? 
       documentFetcher.discovery.generatePotentialLinks(
         question,
         relevantDocs.slice(0, 3),
         extractedJurisdiction,
-        ['food safety', 'business regulations'], // Fallback legal areas
-        ['licence', 'permit', 'registration'] // Fallback keywords
+        analysisResult.legal_areas,
+        analysisResult.keywords
       ) : [];
 
     // Generate AI response in English (optimized prompts, using already translated processedQuestion)
