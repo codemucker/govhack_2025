@@ -175,14 +175,133 @@ const printData = ref<ExportData | null>(null)
 const printViewRef = ref()
 
 /**
+ * Parse the answer text to extract structured requirements
+ */
+function parseRequirementsFromAnswer(answerText: string, deepLinks: any[] = []): any[] {
+  const requirements: any[] = []
+  
+  // Split answer into numbered sections (1. Business Registration, 2. Food Business License, etc.)
+  const numberedSections = answerText.split(/\d+\.\s+\*\*([^*]+)\*\*:?\s*/g)
+  
+  // Process each section (skip first empty split result)
+  for (let i = 1; i < numberedSections.length; i += 2) {
+    const title = numberedSections[i].trim()
+    const content = numberedSections[i + 1]?.trim() || ''
+    
+    if (!title || !content) continue
+    
+    // Extract authority from the content (look for organizations)
+    let authority = 'Government Authority'
+    const authorityMatches = content.match(/(?:through|with|from|by)\s+([A-Z][^.]*?(?:Council|Health|ASIC|Commission|Authority|Department|Government)[^.]*?)(?:\.|,|$)/i)
+    if (authorityMatches) {
+      authority = authorityMatches[1].trim().replace(/\([^)]*\)/g, '').trim()
+    } else if (title.toLowerCase().includes('council')) {
+      authority = 'Local Council'
+    } else if (title.toLowerCase().includes('food') || title.toLowerCase().includes('health')) {
+      authority = 'Queensland Health'
+    } else if (title.toLowerCase().includes('business registration')) {
+      authority = 'ASIC'
+    }
+
+    // Extract actionable steps from the content
+    const actions: any[] = []
+    let stepNumber = 1
+
+    // Look for sub-bullets or dash points
+    const bulletPoints = content.split(/[-•]\s+/).filter(point => point.trim().length > 0)
+    
+    if (bulletPoints.length > 1) {
+      // Multiple bullet points found
+      bulletPoints.slice(1).forEach(bullet => { // Skip first empty split
+        const cleanBullet = bullet.replace(/\n.*$/, '').trim() // Take first line only
+        if (cleanBullet) {
+          // Extract link from markdown format [text](url)
+          const linkMatch = cleanBullet.match(/\[([^\]]+)\]\(([^)]+)\)/)
+          let actionDesc = cleanBullet
+          let actionLink = undefined
+          
+          if (linkMatch) {
+            actionLink = linkMatch[2]
+            actionDesc = cleanBullet.replace(linkMatch[0], linkMatch[1])
+          }
+          
+          actions.push({
+            step: stepNumber++,
+            desc: actionDesc,
+            link: actionLink
+          })
+        }
+      })
+    } else {
+      // Single description, create one main action
+      let mainAction = content.split('.')[0] + '.' // First sentence
+      let actionLink = undefined
+      
+      // Extract main link from content
+      const linkMatch = content.match(/\[([^\]]+)\]\(([^)]+)\)/)
+      if (linkMatch) {
+        actionLink = linkMatch[2]
+        // Clean up the action description by removing the markdown link
+        mainAction = mainAction.replace(linkMatch[0], linkMatch[1])
+      }
+      
+      actions.push({
+        step: 1,
+        desc: mainAction.trim(),
+        link: actionLink
+      })
+      
+      // Look for additional specific steps mentioned
+      if (content.includes('apply for') || content.includes('obtain')) {
+        actions.push({
+          step: 2,
+          desc: 'Submit application and required documentation',
+          link: actionLink
+        })
+      }
+      
+      if (content.includes('inspection') || content.includes('approval')) {
+        actions.push({
+          step: actions.length + 1,
+          desc: 'Arrange inspection and obtain approval',
+          link: undefined
+        })
+      }
+    }
+    
+    // Extract notes/important information
+    const notes: string[] = []
+    if (content.includes('must') || content.includes('required')) {
+      notes.push('Required before business operations can commence')
+    }
+    if (content.includes('before') || content.includes('prior to')) {
+      notes.push('Complete this requirement before proceeding with other permits')
+    }
+    
+    requirements.push({
+      title: title,
+      authority: authority,
+      actions: actions.length > 0 ? actions : [{
+        step: 1,
+        desc: 'Contact the relevant authority for specific requirements',
+        link: undefined
+      }],
+      notes: notes.length > 0 ? notes : ['Verify current requirements with the relevant authority']
+    })
+  }
+  
+  return requirements
+}
+
+/**
  * Convert AskQuestionResponse to TriageResponse format for compatibility
  */
 function convertToTriageResponse(response: AskQuestionResponse, originalQuery: string, originalAddress?: string): TriageResponse {
-  // Extract basic assumptions from the response
+  // Extract assumptions from the response metadata
   const assumptions = [
     'Using real-time Australian legal document analysis',
-    'Based on current regulatory requirements',
-    'Includes multi-jurisdictional compliance'
+    'Based on current regulatory requirements from government sources',
+    `Analysis confidence: ${Math.round((response.confidence || 0) * 100)}%`
   ]
   
   // Create jurisdiction info from sources
@@ -193,19 +312,8 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     confidence: (source.total_score || 50) / 100
   })) || []
 
-  // Extract requirements from deep links
-  const requirements = response.deep_links?.filter(link => 
-    link.type === 'permit_application' || link.type === 'regulatory_authority'
-  ).map((link, index) => ({
-    title: link.title,
-    authority: link.authority || link.jurisdiction,
-    actions: [{
-      step: 1,
-      desc: link.description,
-      link: link.url
-    }],
-    notes: [link.description]
-  })) || []
+  // Parse requirements from the answer text
+  const requirements = parseRequirementsFromAnswer(response.answer || '', response.deep_links)
 
   // Extract contacts from regulatory authority links
   const contacts = response.deep_links?.filter(link => 
@@ -213,8 +321,18 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
   ).map(link => ({
     authority: link.authority || link.jurisdiction,
     type: link.contact_type || 'General',
+    phone: undefined, // Not provided in new API
     url: link.url
   })) || []
+
+  // Add generic contacts if none found
+  if (contacts.length === 0) {
+    contacts.push({
+      authority: 'Local Council',
+      type: 'General Enquiries',
+      url: response.deep_links?.find(l => l.type === 'regulatory_authority')?.url || '#'
+    })
+  }
 
   return {
     query: {
@@ -229,7 +347,9 @@ function convertToTriageResponse(response: AskQuestionResponse, originalQuery: s
     jurisdictions,
     requirements,
     contacts,
-    disclaimer: "This information is generated from real-time analysis of Australian legal documents and should not be considered legal advice. Always verify current requirements with the relevant authorities."
+    disclaimer: response.answer?.includes('⚠️ IMPORTANT:') ? 
+      response.answer.split('⚠️ IMPORTANT:')[1]?.trim() || "This information should not be considered legal advice." :
+      "This information is generated from real-time analysis of Australian legal documents and should not be considered legal advice. Always verify current requirements with the relevant authorities."
   }
 }
 
