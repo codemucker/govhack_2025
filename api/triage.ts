@@ -1,4 +1,7 @@
 import { api } from "encore.dev/api";
+import { ReferenceDataService } from "./referenceDataService";
+import { DataIngestionService } from "./dataIngestionService";
+import { db } from "./database";
 
 // Request and response interfaces for the AI triage service
 interface TriageRequest {
@@ -248,56 +251,29 @@ async function processLegalTriage(req: TriageRequest): Promise<TriageResponse> {
 
 // Helper functions for triage processing
 
+const referenceDataService = new ReferenceDataService();
+const dataIngestionService = new DataIngestionService();
+
 async function extractLocationInfo(query: string, address?: string): Promise<LocationInfo | undefined> {
   const location = address || query;
   if (!location) return undefined;
 
-  // Basic location extraction logic
-  const locationLower = location.toLowerCase();
+  // Use dynamic location resolution service
+  const locationData = await referenceDataService.resolveLocation(location, address);
   
-  // Australian state detection
-  const stateMap: Record<string, string> = {
-    'nsw': 'New South Wales',
-    'vic': 'Victoria', 
-    'qld': 'Queensland',
-    'wa': 'Western Australia',
-    'sa': 'South Australia',
-    'tas': 'Tasmania',
-    'nt': 'Northern Territory',
-    'act': 'Australian Capital Territory'
-  };
-  
-  let detectedState: string | undefined;
-  for (const [abbrev, fullName] of Object.entries(stateMap)) {
-    if (locationLower.includes(abbrev) || locationLower.includes(fullName.toLowerCase())) {
-      detectedState = fullName;
-      break;
-    }
-  }
-
-  // Council/city detection (simplified)
-  const cityCouncilMap: Record<string, string> = {
-    'sydney': 'Sydney City Council',
-    'melbourne': 'Melbourne City Council',
-    'brisbane': 'Brisbane City Council',
-    'perth': 'Perth City Council',
-    'adelaide': 'Adelaide City Council',
-    'darwin': 'Darwin City Council',
-    'canberra': 'Australian Capital Territory'
-  };
-
-  let detectedCouncil: string | undefined;
-  for (const [city, council] of Object.entries(cityCouncilMap)) {
-    if (locationLower.includes(city)) {
-      detectedCouncil = council;
-      break;
-    }
+  if (locationData) {
+    return {
+      address: address || location,
+      state: locationData.state,
+      council: locationData.council,
+      country: 'Australia'
+    };
   }
 
   return {
     address: address || 'Australia',
-    state: detectedState,
-    council: detectedCouncil,
+    state: undefined,
+    council: undefined,
     country: 'Australia'
   };
 }
@@ -340,13 +316,82 @@ async function generateRequirements(query: string, jurisdictions: JurisdictionIn
   const requirements: Requirement[] = [];
   const queryLower = query.toLowerCase();
 
-  // Business registration requirements
+  // Determine activity types from query
+  const activityTypes = [];
   if (queryLower.includes('business') || queryLower.includes('company') || queryLower.includes('cafe') || queryLower.includes('restaurant')) {
+    activityTypes.push('business_registration');
+  }
+  if (queryLower.includes('food') || queryLower.includes('cafe') || queryLower.includes('restaurant')) {
+    activityTypes.push('food_business');
+  }
+  if (queryLower.includes('build') || queryLower.includes('extend') || queryLower.includes('renovate') || queryLower.includes('shed')) {
+    activityTypes.push('development');
+  }
+
+  // Get requirements dynamically from database
+  for (const jurisdiction of jurisdictions) {
+    const jurisdictionId = await getJurisdictionIdByName(jurisdiction.authority || jurisdiction.name);
+    if (!jurisdictionId) continue;
+
+    for (const activityType of activityTypes) {
+      try {
+        const templates = await referenceDataService.getRequirementTemplates(jurisdictionId, activityType);
+        
+        for (const template of templates) {
+          // Get current fees for this requirement
+          const fees = await referenceDataService.getFeeSchedule(jurisdictionId, activityType);
+          const totalFee = calculateFeeRange(fees);
+
+          // Parse steps from JSON
+          let actions: RequirementAction[] = [];
+          try {
+            const steps = JSON.parse(template.steps);
+            actions = steps.map((step: any, index: number) => ({
+              step: index + 1,
+              desc: step.description,
+              link: step.link,
+              timeframe: step.timeframe,
+              cost: step.cost,
+              priority: step.priority || 'medium'
+            }));
+          } catch (e) {
+            console.error('Failed to parse requirement steps:', e);
+          }
+
+          requirements.push({
+            title: template.title,
+            authority: jurisdiction.authority || jurisdiction.name,
+            mandatory: template.is_mandatory,
+            estimatedCost: totalFee || template.estimated_timeframe,
+            estimatedTimeframe: template.estimated_timeframe || 'Varies',
+            actions,
+            notes: [template.description]
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to get requirements for ${jurisdiction.name}/${activityType}:`, error);
+      }
+    }
+  }
+
+  // Fallback to basic requirements if no dynamic data available
+  if (requirements.length === 0) {
+    requirements.push(...await generateFallbackRequirements(queryLower, location));
+  }
+
+  return requirements;
+}
+
+// Fallback requirements when dynamic data is not available
+async function generateFallbackRequirements(queryLower: string, location?: LocationInfo): Promise<Requirement[]> {
+  const requirements: Requirement[] = [];
+
+  if (queryLower.includes('business') || queryLower.includes('company')) {
     requirements.push({
       title: 'Business Registration & ABN',
       authority: 'Australian Business Register',
       mandatory: true,
-      estimatedCost: '$40-$500',
+      estimatedCost: 'Varies by business type',
       estimatedTimeframe: '1-3 weeks',
       actions: [
         {
@@ -354,7 +399,6 @@ async function generateRequirements(query: string, jurisdictions: JurisdictionIn
           desc: 'Register business name with ASIC (if applicable)',
           link: 'https://asic.gov.au/for-business/registering-a-business-name',
           timeframe: '1-2 days',
-          cost: '$40-$100',
           priority: 'high'
         },
         {
@@ -366,77 +410,7 @@ async function generateRequirements(query: string, jurisdictions: JurisdictionIn
           priority: 'high'
         }
       ],
-      notes: ['Required before applying for other permits and licenses']
-    });
-  }
-
-  // Food business requirements
-  if (queryLower.includes('food') || queryLower.includes('cafe') || queryLower.includes('restaurant')) {
-    const council = location?.council || 'Local Council';
-    requirements.push({
-      title: 'Food Business Licence',
-      authority: council,
-      mandatory: true,
-      estimatedCost: '$200-$800',
-      estimatedTimeframe: '2-6 weeks',
-      actions: [
-        {
-          step: 1,
-          desc: 'Submit food business notification',
-          timeframe: '1 week',
-          cost: '$200-$400',
-          priority: 'high'
-        },
-        {
-          step: 2,
-          desc: 'Arrange pre-opening inspection',
-          timeframe: '1-2 weeks',
-          priority: 'high'
-        },
-        {
-          step: 3,
-          desc: 'Obtain food safety supervisor certification',
-          timeframe: '1 day',
-          cost: '$200-$400',
-          priority: 'medium'
-        }
-      ],
-      notes: ['Must be completed before serving food to public', 'Regular inspections required']
-    });
-  }
-
-  // Building/development requirements
-  if (queryLower.includes('build') || queryLower.includes('extend') || queryLower.includes('renovate') || queryLower.includes('shed')) {
-    const council = location?.council || 'Local Council';
-    requirements.push({
-      title: 'Development Approval',
-      authority: council,
-      mandatory: true,
-      estimatedCost: '$500-$5,000',
-      estimatedTimeframe: '4-12 weeks',
-      actions: [
-        {
-          step: 1,
-          desc: 'Check planning requirements and zoning',
-          timeframe: '1 week',
-          priority: 'high'
-        },
-        {
-          step: 2,
-          desc: 'Submit development application if required',
-          timeframe: '6-10 weeks',
-          cost: '$500-$3,000',
-          priority: 'high'
-        },
-        {
-          step: 3,
-          desc: 'Obtain building permit if required',
-          timeframe: '2-4 weeks',
-          cost: '$200-$2,000',
-          priority: 'high'
-        }
-      ],
-      notes: ['Requirements vary significantly by location and development type', 'Consult council before starting work']
+      notes: ['Costs and requirements updated dynamically from government sources', 'Contact authorities for current information']
     });
   }
 
@@ -446,37 +420,71 @@ async function generateRequirements(query: string, jurisdictions: JurisdictionIn
 async function findRelevantContacts(jurisdictions: JurisdictionInfo[], requirements: Requirement[]): Promise<ContactInfo[]> {
   const contacts: ContactInfo[] = [];
   
-  // Add federal contacts
-  contacts.push({
-    authority: 'Australian Business Register',
-    type: 'Business Registration Support',
-    phone: '13 72 26',
-    url: 'https://abr.business.gov.au',
-    operatingHours: 'Monday to Friday, 8:00am to 6:00pm AEST'
-  });
-
-  // Add state-specific contacts based on identified jurisdictions
-  for (const jurisdiction of jurisdictions) {
-    if (jurisdiction.level === 'state') {
-      if (jurisdiction.name.includes('Queensland')) {
-        contacts.push({
-          authority: 'Business Queensland',
-          type: 'State Government Support',
-          phone: '13 QGOV (13 74 68)',
-          url: 'https://www.business.qld.gov.au',
-          operatingHours: 'Monday to Friday, 8:30am to 4:30pm AEST'
-        });
-      } else if (jurisdiction.name.includes('New South Wales')) {
-        contacts.push({
-          authority: 'Service NSW Business',
-          type: 'State Government Support', 
-          phone: '13 77 88',
-          url: 'https://www.service.nsw.gov.au',
-          operatingHours: 'Monday to Friday, 7:00am to 7:00pm AEST'
-        });
-      }
-      // Add other states as needed...
+  try {
+    // Extract jurisdiction IDs for database lookup
+    const jurisdictionIds = [];
+    for (const jurisdiction of jurisdictions) {
+      const id = await getJurisdictionIdByName(jurisdiction.authority || jurisdiction.name);
+      if (id) jurisdictionIds.push(id);
     }
+
+    // Extract requirement types for targeted contact lookup  
+    const requirementTypes = requirements.map(req => 
+      req.title.toLowerCase().replace(/[^a-z\s]/g, '').trim()
+    );
+
+    // Get dynamic contact information from database
+    const authorityContacts = await referenceDataService.getAuthorityContacts(jurisdictionIds, requirementTypes);
+    
+    // Convert to ContactInfo format
+    for (const contact of authorityContacts) {
+      contacts.push({
+        authority: contact.authority_name,
+        type: contact.contact_type,
+        phone: contact.phone,
+        email: contact.email,
+        url: contact.website_url,
+        operatingHours: contact.operating_hours
+      });
+    }
+
+    // Discover missing contacts dynamically
+    for (const jurisdiction of jurisdictions) {
+      const existingContact = contacts.find(c => 
+        c.authority.toLowerCase().includes(jurisdiction.name.toLowerCase()) ||
+        jurisdiction.name.toLowerCase().includes(c.authority.toLowerCase())
+      );
+
+      if (!existingContact) {
+        // Attempt to discover and cache contact information
+        const discoveredContact = await referenceDataService.discoverAndCacheContactInfo(
+          jurisdiction.authority || jurisdiction.name,
+          jurisdiction.name
+        );
+
+        if (discoveredContact) {
+          contacts.push({
+            authority: discoveredContact.authority_name,
+            type: discoveredContact.contact_type,
+            phone: discoveredContact.phone,
+            email: discoveredContact.email,
+            url: discoveredContact.website_url,
+            operatingHours: discoveredContact.operating_hours
+          });
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Failed to fetch dynamic contacts:', error);
+    
+    // Fallback to essential contacts
+    contacts.push({
+      authority: 'Australian Business Register',
+      type: 'Business Registration Support',
+      url: 'https://abr.business.gov.au',
+      operatingHours: 'Contact for current hours and phone numbers'
+    });
   }
 
   return contacts;
@@ -601,5 +609,38 @@ function calculateTotalTimeframe(requirements: Requirement[]): string {
 }
 
 function generateDisclaimer(): string {
-  return "⚠️ IMPORTANT: This information is general in nature and should not be considered legal advice. Australian laws can be complex and may vary by jurisdiction. For specific legal matters, please consult with a qualified legal professional or contact the relevant government department.";
+  return "⚠️ IMPORTANT: This information is general in nature and should not be considered legal advice. Australian laws can be complex and may vary by jurisdiction. For specific legal matters, please consult with a qualified legal professional or contact the relevant government department. Cost and contact information is updated dynamically from official sources.";
+}
+
+// Helper functions for dynamic data lookups
+async function getJurisdictionIdByName(name: string): Promise<string | null> {
+  try {
+    const results = await db.query(
+      `SELECT id FROM jurisdictions WHERE LOWER(name) = ? OR LOWER(official_name) = ?`,
+      [name.toLowerCase(), name.toLowerCase()]
+    );
+    return results.length > 0 ? results[0].id : null;
+  } catch (error) {
+    console.error('Failed to get jurisdiction ID:', error);
+    return null;
+  }
+}
+
+function calculateFeeRange(fees: any[]): string | undefined {
+  if (fees.length === 0) return undefined;
+  
+  const costs = fees.filter(fee => fee.min_cost || fee.max_cost);
+  if (costs.length === 0) return undefined;
+
+  const minCosts = costs.filter(fee => fee.min_cost).map(fee => fee.min_cost);
+  const maxCosts = costs.filter(fee => fee.max_cost).map(fee => fee.max_cost);
+
+  const minTotal = minCosts.length > 0 ? Math.min(...minCosts) : 0;
+  const maxTotal = maxCosts.length > 0 ? Math.max(...maxCosts) : minTotal;
+
+  if (minTotal === maxTotal) {
+    return `$${minTotal}`;
+  } else {
+    return `$${minTotal} - $${maxTotal}`;
+  }
 }
