@@ -3,7 +3,7 @@
 // Admin API - Database inspection and management
 // Provides endpoints for viewing documents, tags, jurisdictions, and other database contents
 
-import { PersistentDatabase, Document, Query, Authority, DatabaseStats } from './persistent-database.js';
+import type { PersistentDatabase } from './persistent-database.js';
 
 interface DocumentFilter {
   jurisdiction?: string;

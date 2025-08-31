@@ -49,21 +49,20 @@
     "npm": ">=10.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/express": "^5.0.3",
     "@types/node": "^20.14.0",
-    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.57.0",
     "typescript": "^5.5.0"
   },
   "dependencies": {
+    "@marp-team/marp-cli": "^4.2.3",
     "dotenv": "^17.2.1",
     "encore.dev": "^1.49.1",
     "express": "^5.1.0",
     "jsdom": "^26.1.0",
     "node-fetch": "^3.3.2",
+    "reveal.js": "^5.2.1",
     "sqlite3": "^5.1.7",
     "vue-i18n": "^9.14.5",
     "ws": "^8.18.3"
