@@ -18,6 +18,7 @@ import { PermitSiteIngester } from './permit-site-ingester.js';
 import { locationMapper } from './location-mapper.js';
 import { AuthoritySeeder } from './authority-seeder.js';
 import { ContactLookupService } from './contact-lookup-service.js';
+import { AdminApi } from './admin-api.ts';
 
 // Load environment variables
 dotenv.config();
@@ -390,6 +391,10 @@ async function initializeDatabase() {
     // Initialize Contact Lookup Service
     contactLookupService = new ContactLookupService(db);
     console.log('📞 Contact lookup service initialized');
+    
+    // Initialize Admin API
+    adminApi = new AdminApi(db);
+    console.log('⚙️ Admin API initialized');
     
     // Initialize Background Intelligence Services after seeding
     // Temporarily disabled to prevent server crashes
@@ -2890,6 +2895,7 @@ let failureHandler = null;
 
 // Contact lookup service (initialized after startup)
 let contactLookupService = null;
+let adminApi = null;
 
 // Note: No more hardcoded sample documents - all documents are discovered dynamically based on user queries
 
@@ -3625,7 +3631,11 @@ app.post('/api/legal/ask', async (req, res) => {
     await db.saveQuery({
       id: queryId,
       question,
+      translated_question: processedQuestion !== question ? processedQuestion : null,
+      detected_language: finalLanguage !== queryLanguage ? finalLanguage : null,
+      original_language: queryLanguage !== 'en' ? queryLanguage : null,
       answer: finalResponse.answer || finalResponse,
+      ai_response: englishResponse ? JSON.stringify(englishResponse) : null,
       sources_used: sources.map(s => s.url),
       jurisdiction: location || 'Australia',
       confidence: 0.9,
@@ -3804,6 +3814,225 @@ wss.on('connection', (ws) => {
   ws.on('error', (error) => {
     console.error('WebSocket error:', error);
   });
+});
+
+// Admin API endpoints
+app.get('/api/admin/documents', async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, jurisdiction, document_type, synthetic, search } = req.query;
+    const filters = { jurisdiction, document_type, synthetic: synthetic === 'true' ? true : synthetic === 'false' ? false : undefined, search };
+    
+    const result = await adminApi.getDocuments(parseInt(limit), parseInt(offset), filters);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+app.get('/api/admin/documents/:url', async (req, res) => {
+  try {
+    const document = await adminApi.getDocument(decodeURIComponent(req.params.url));
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    res.json(document);
+  } catch (error) {
+    console.error('Error fetching document:', error);
+    res.status(500).json({ error: 'Failed to fetch document' });
+  }
+});
+
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const stats = await adminApi.getDocumentStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+app.get('/api/admin/jurisdictions', async (req, res) => {
+  try {
+    const jurisdictions = await adminApi.getJurisdictions();
+    res.json(jurisdictions);
+  } catch (error) {
+    console.error('Error fetching jurisdictions:', error);
+    res.status(500).json({ error: 'Failed to fetch jurisdictions' });
+  }
+});
+
+app.get('/api/admin/document-types', async (req, res) => {
+  try {
+    const types = await adminApi.getDocumentTypes();
+    res.json(types);
+  } catch (error) {
+    console.error('Error fetching document types:', error);
+    res.status(500).json({ error: 'Failed to fetch document types' });
+  }
+});
+
+app.get('/api/admin/tags', async (req, res) => {
+  try {
+    const { limit = 100 } = req.query;
+    const tags = await adminApi.getTags(parseInt(limit));
+    res.json(tags);
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+});
+
+app.get('/api/admin/queries', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const queries = await adminApi.getRecentQueries(parseInt(limit));
+    res.json(queries);
+  } catch (error) {
+    console.error('Error fetching queries:', error);
+    res.status(500).json({ error: 'Failed to fetch queries' });
+  }
+});
+
+app.get('/api/admin/authorities', async (req, res) => {
+  try {
+    const authorities = await adminApi.getAuthorities();
+    res.json(authorities);
+  } catch (error) {
+    console.error('Error fetching authorities:', error);
+    res.status(500).json({ error: 'Failed to fetch authorities' });
+  }
+});
+
+app.get('/api/admin/legal-taxonomy', async (req, res) => {
+  try {
+    const taxonomy = await adminApi.getLegalTaxonomy();
+    res.json(taxonomy);
+  } catch (error) {
+    console.error('Error fetching legal taxonomy:', error);
+    res.status(500).json({ error: 'Failed to fetch legal taxonomy' });
+  }
+});
+
+app.get('/api/admin/search', async (req, res) => {
+  try {
+    const { q, limit = 20 } = req.query;
+    if (!q) {
+      return res.status(400).json({ error: 'Search query (q) is required' });
+    }
+    const results = await adminApi.searchDocuments(q, parseInt(limit));
+    res.json(results);
+  } catch (error) {
+    console.error('Error searching documents:', error);
+    res.status(500).json({ error: 'Failed to search documents' });
+  }
+});
+
+app.get('/api/admin/health', async (req, res) => {
+  try {
+    const health = await adminApi.getDatabaseHealth();
+    res.json(health);
+  } catch (error) {
+    console.error('Error fetching database health:', error);
+    res.status(500).json({ error: 'Failed to fetch database health' });
+  }
+});
+
+// Document management endpoints
+app.delete('/api/admin/documents/:url', async (req, res) => {
+  try {
+    const result = await adminApi.deleteDocument(decodeURIComponent(req.params.url));
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+app.delete('/api/admin/documents', async (req, res) => {
+  try {
+    const { type } = req.query;
+    let result;
+    
+    if (type === 'synthetic') {
+      result = await adminApi.purgeAllSyntheticDocuments();
+    } else if (type === 'all') {
+      result = await adminApi.purgeAllDocuments();
+    } else {
+      return res.status(400).json({ error: 'Invalid purge type. Use "synthetic" or "all"' });
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error purging documents:', error);
+    res.status(500).json({ error: 'Failed to purge documents' });
+  }
+});
+
+// Enhanced query endpoints
+app.get('/api/admin/queries/all', async (req, res) => {
+  try {
+    const { limit = 100, offset = 0, start_date, end_date, has_translation, has_llm_response } = req.query;
+    const filters = { 
+      start_date, 
+      end_date, 
+      has_translation: has_translation === 'true' ? true : has_translation === 'false' ? false : undefined,
+      has_llm_response: has_llm_response === 'true' ? true : has_llm_response === 'false' ? false : undefined
+    };
+    
+    const queries = await adminApi.getAllQueries(parseInt(limit), filters, parseInt(offset));
+    res.json(queries);
+  } catch (error) {
+    console.error('Error fetching all queries:', error);
+    res.status(500).json({ error: 'Failed to fetch all queries' });
+  }
+});
+
+app.get('/api/admin/queries/business-intelligence', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const queries = await adminApi.getBusinessIntelligenceQueries(parseInt(limit));
+    res.json(queries);
+  } catch (error) {
+    console.error('Error fetching business intelligence queries:', error);
+    res.status(500).json({ error: 'Failed to fetch business intelligence queries' });
+  }
+});
+
+app.get('/api/admin/queries/:queryId/flow', async (req, res) => {
+  try {
+    const flow = await adminApi.getQueryFlow(req.params.queryId);
+    if (!flow) {
+      return res.status(404).json({ error: 'Query flow not found' });
+    }
+    res.json(flow);
+  } catch (error) {
+    console.error('Error fetching query flow:', error);
+    res.status(500).json({ error: 'Failed to fetch query flow' });
+  }
+});
+
+app.delete('/api/admin/queries/:queryId', async (req, res) => {
+  try {
+    const result = await adminApi.deleteQuery(req.params.queryId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting query:', error);
+    res.status(500).json({ error: 'Failed to delete query' });
+  }
+});
+
+app.delete('/api/admin/queries', async (req, res) => {
+  try {
+    const { older_than_days } = req.query;
+    const days = older_than_days ? parseInt(older_than_days) : 30;
+    const result = await adminApi.deleteQueriesOlderThan(days);
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting old queries:', error);
+    res.status(500).json({ error: 'Failed to delete old queries' });
+  }
 });
 
 // Enhanced translation with LLM-verified language detection

@@ -32,9 +32,9 @@ print_info "Stopping all LegalEase services..."
 
 # Kill specific processes
 pkill -f "node standalone-server.js" 2>/dev/null && print_status "Standalone server stopped" || print_warning "No standalone server process found"
-pkill -f "npm run dev" 2>/dev/null && print_status "Development server stopped" || true
+pkill -f "npm run dev" 2>/dev/null && print_status "Development servers stopped" || true
 pkill -f "encore run" 2>/dev/null && print_status "Encore server stopped" || true  
-pkill -f "vite" 2>/dev/null && print_status "Vite dev server stopped" || true
+pkill -f "vite" 2>/dev/null && print_status "Vite dev servers (frontend + admin) stopped" || true
 
 # Wait for processes to terminate gracefully
 sleep 2

@@ -40,6 +40,9 @@ export class PersistentDatabase {
     // Create tables
     await this.createTables();
     
+    // Run migrations for existing databases
+    await this.runMigrations();
+    
     this.isInitialized = true;
     console.log(`📊 SQLite database initialized: ${DATABASE_FILE}`);
   }
@@ -86,7 +89,11 @@ export class PersistentDatabase {
       CREATE TABLE IF NOT EXISTS queries (
         id TEXT PRIMARY KEY,
         question TEXT NOT NULL,
+        translated_question TEXT, -- English version if translated
+        detected_language TEXT, -- Language detected by LLM
+        original_language TEXT, -- Assumed language from user
         answer TEXT,
+        ai_response TEXT, -- Raw LLM response before processing
         sources_used TEXT, -- JSON array
         jurisdiction TEXT,
         confidence REAL,
@@ -159,6 +166,49 @@ export class PersistentDatabase {
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_legislation_area ON jurisdiction_legislation(legal_area)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_authorities_jurisdiction ON jurisdiction_authorities(jurisdiction)`);
     await this.runQuery(`CREATE INDEX IF NOT EXISTS idx_jurisdiction_authorities_type ON jurisdiction_authorities(authority_type)`);
+  }
+
+  // Database migrations for existing databases
+  async runMigrations() {
+    try {
+      // Migration 1: Add translation flow columns to queries table
+      await this.runQuery(`ALTER TABLE queries ADD COLUMN translated_question TEXT`);
+      console.log('✅ Added translated_question column');
+    } catch (error) {
+      // Column already exists, ignore
+      if (!error.message.includes('duplicate column name')) {
+        console.error('Migration error for translated_question:', error.message);
+      }
+    }
+
+    try {
+      await this.runQuery(`ALTER TABLE queries ADD COLUMN detected_language TEXT`);
+      console.log('✅ Added detected_language column');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('Migration error for detected_language:', error.message);
+      }
+    }
+
+    try {
+      await this.runQuery(`ALTER TABLE queries ADD COLUMN original_language TEXT`);
+      console.log('✅ Added original_language column');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('Migration error for original_language:', error.message);
+      }
+    }
+
+    try {
+      await this.runQuery(`ALTER TABLE queries ADD COLUMN ai_response TEXT`);
+      console.log('✅ Added ai_response column');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error('Migration error for ai_response:', error.message);
+      }
+    }
+
+    console.log('🔄 Database migrations completed');
   }
 
   // Helper method to run queries with promise interface
@@ -314,13 +364,17 @@ export class PersistentDatabase {
     
     await this.runQuery(`
       INSERT OR REPLACE INTO queries 
-      (id, question, answer, sources_used, jurisdiction, confidence, execution_time, 
-       tokens_used, relevant, relevance_reason, events_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, question, translated_question, detected_language, original_language, answer, ai_response, 
+       sources_used, jurisdiction, confidence, execution_time, tokens_used, relevant, relevance_reason, events_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       query.id,
       query.question,
+      query.translated_question,
+      query.detected_language,
+      query.original_language,
       query.answer,
+      query.ai_response,
       JSON.stringify(query.sources_used || []),
       query.jurisdiction,
       query.confidence,

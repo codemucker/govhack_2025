@@ -58,30 +58,47 @@ else
     print_warning "Frontend dev server may have issues - check logs"
 fi
 
-# 4. Display service information
+# 4. Start admin frontend dev server
+print_info "Starting admin frontend development server..."
+cd frontend-admin
+nohup npm run dev > ../logs/admin-frontend.log 2>&1 &
+ADMIN_PID=$!
+cd ..
+sleep 3
+
+if ps -p $ADMIN_PID > /dev/null; then
+    print_status "Admin frontend dev server started (PID: $ADMIN_PID)"
+else
+    print_warning "Admin frontend dev server may have issues - check logs"
+fi
+
+# 5. Display service information
 echo ""
 echo "🚀 LegalEase Development Mode Running:"
 echo "====================================="
 echo ""
 echo "🌐 OPEN IN BROWSER:"
 echo -e "   ${GREEN}📊 Frontend (Dev):      http://localhost:3000${NC}"
-echo -e "   ${BLUE}🔧 Backend API:         http://localhost:4003${NC}"
+echo -e "   ${YELLOW}⚙️  Admin Dashboard:     http://localhost:3001${NC}"
+echo -e "   ${BLUE}🔧 Backend API:         http://localhost:4000${NC}"
 echo ""
 echo "🔧 API ENDPOINTS:"
-echo "   📋 Health Check:       http://localhost:4003/api/hello"
-echo "   🤖 Legal Query API:    http://localhost:4003/api/legal/ask"
-echo "   📄 Database Stats:     http://localhost:4003/api/cache-documents"
+echo "   📋 Health Check:       http://localhost:4000/api/hello"
+echo "   🤖 Legal Query API:    http://localhost:4000/api/legal/ask"
+echo "   📄 Database Stats:     http://localhost:4000/api/cache-documents"
+echo "   ⚙️  Admin API:          http://localhost:4000/api/admin/*"
 echo ""
 echo "📝 LOGS:"
 echo "   Backend:              tail -f logs/server.log"
 echo "   Frontend:             tail -f logs/frontend.log"
+echo "   Admin Frontend:       tail -f logs/admin-frontend.log"
 echo ""
 echo "🛑 To stop: ./stop.sh"
 echo ""
 
-# 5. Test endpoints
+# 6. Test endpoints
 print_info "Testing backend endpoint..."
-if curl -s http://localhost:4003/api/hello > /dev/null; then
+if curl -s http://localhost:4000/api/hello > /dev/null; then
     print_status "Backend API responding"
 else
     print_warning "Backend API not responding yet"
@@ -90,7 +107,8 @@ fi
 print_status "Development environment started!"
 echo ""
 echo -e "${GREEN}🌐 Main App: http://localhost:3000 (Frontend Dev Server)${NC}"
-echo -e "${BLUE}🔧 API: http://localhost:4003 (Backend)${NC}"
+echo -e "${YELLOW}⚙️  Admin Dashboard: http://localhost:3001 (Admin Interface)${NC}"
+echo -e "${BLUE}🔧 API: http://localhost:4000 (Backend)${NC}"
 echo ""
 
 # Optional: Show logs
