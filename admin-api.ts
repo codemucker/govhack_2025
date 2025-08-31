@@ -713,4 +713,95 @@ export class AdminApi {
       };
     }
   }
+
+  // Real-time monitoring methods
+  async getLiveStats(): Promise<any> {
+    try {
+      const [
+        totalQueries,
+        totalDocuments,
+        recentQueries,
+        activeIngestion,
+        queryStats
+      ] = await Promise.all([
+        this.db.getQuery('SELECT COUNT(*) as count FROM queries'),
+        this.db.getQuery('SELECT COUNT(*) as count FROM documents'),
+        this.db.getQuery('SELECT COUNT(*) as count FROM queries WHERE created_at > datetime("now", "-1 hour")'),
+        this.db.getQuery('SELECT COUNT(*) as count FROM documents WHERE created_at > datetime("now", "-10 minutes")'),
+        this.db.getQuery(`
+          SELECT 
+            AVG(execution_time) as avg_execution_time,
+            AVG(tokens_used) as avg_tokens,
+            AVG(confidence) as avg_confidence,
+            COUNT(CASE WHEN relevant = 1 THEN 1 END) as relevant_count,
+            COUNT(CASE WHEN relevant = 0 THEN 1 END) as irrelevant_count
+          FROM queries 
+          WHERE created_at > datetime("now", "-24 hours")
+        `)
+      ]);
+
+      return {
+        totals: {
+          queries: totalQueries?.count || 0,
+          documents: totalDocuments?.count || 0
+        },
+        recent: {
+          queries_last_hour: recentQueries?.count || 0,
+          documents_last_10min: activeIngestion?.count || 0
+        },
+        performance: {
+          avg_execution_time: Math.round(queryStats?.avg_execution_time || 0),
+          avg_tokens_used: Math.round(queryStats?.avg_tokens || 0),
+          avg_confidence: parseFloat((queryStats?.avg_confidence || 0).toFixed(3)),
+          relevant_queries: queryStats?.relevant_count || 0,
+          irrelevant_queries: queryStats?.irrelevant_count || 0
+        },
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error getting live stats:', error);
+      throw error;
+    }
+  }
+
+  async getRecentActivity(limit: number = 20, since?: string): Promise<any[]> {
+    try {
+      let query = `
+        SELECT 
+          'query' as type,
+          id,
+          question as title,
+          jurisdiction as location,
+          execution_time,
+          tokens_used,
+          confidence,
+          relevant,
+          created_at as timestamp
+        FROM queries 
+      `;
+      
+      const params: any[] = [];
+      
+      if (since) {
+        query += ' WHERE created_at > ? ';
+        params.push(since);
+      }
+
+      query += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(limit);
+
+      const activities = await this.db.allQuery(query, params);
+      
+      return activities.map(activity => ({
+        ...activity,
+        timestamp: new Date(activity.timestamp).toISOString(),
+        execution_time: activity.execution_time || 0,
+        tokens_used: activity.tokens_used || 0,
+        confidence: parseFloat((activity.confidence || 0).toFixed(3))
+      }));
+    } catch (error) {
+      console.error('Error getting recent activity:', error);
+      throw error;
+    }
+  }
 }

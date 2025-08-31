@@ -1380,6 +1380,15 @@ class StandaloneDocumentFetcher {
   constructor() {
     this.discovery = new AustLIIDiscovery();
     this.queryAnalyzer = new QueryAnalyzer();
+    
+    // Import enhanced document fetcher dynamically to avoid module conflicts
+    try {
+      const { EnhancedDocumentFetcher } = require('./enhanced-document-fetcher.js');
+      this.enhancedFetcher = new EnhancedDocumentFetcher(db);
+    } catch (error) {
+      console.warn('Enhanced document fetcher not available, using fallback:', error.message);
+      this.enhancedFetcher = null;
+    }
   }
 
   // Real web search method using HTTP-based search API
@@ -1526,8 +1535,19 @@ class StandaloneDocumentFetcher {
     };
   }
 
-  // Renamed existing method
+  // Enhanced document fetching using the new EnhancedDocumentFetcher
   async fetchAustLIIDocument(url) {
+    if (this.enhancedFetcher) {
+      return await this.enhancedFetcher.fetchDocument(url);
+    } else {
+      // Fallback to original method if enhanced fetcher is not available
+      console.log('Using fallback document fetching for:', url);
+      return await this.fetchAustLIIDocumentFallback(url);
+    }
+  }
+
+  // Fallback method (original implementation)
+  async fetchAustLIIDocumentFallback(url) {
     console.log(`Fetching document from: ${url}`);
     
     // Check database first
@@ -1537,58 +1557,40 @@ class StandaloneDocumentFetcher {
         content: cached.content,
         tags: Array.isArray(cached.tags) ? cached.tags : (cached.tags ? cached.tags.split(',').filter(t => t.length > 0) : []),
         url: cached.url,
-        synthetic: cached.synthetic
+        synthetic: cached.synthetic || false
       };
     }
 
-    // Fetch with exponential backoff and retry logic
-    const maxRetries = 3;
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const response = await this.fetchWithRetry(url, attempt);
-        
-        if (response.ok) {
-          const html = await response.text();
-          const content = this.extractTextFromHtml(html);
-          const tags = this.extractTags(content, url);
-          
-          // Store in database
-          await db.saveDocument({
-            url,
-            content,
-            tags,
-            jurisdiction: this.extractJurisdictionFromUrl(url),
-            document_type: this.extractDocumentTypeFromUrl(url).toLowerCase(),
-            synthetic: false
-          });
-          
-          return {
-            content,
-            tags,
-            url
-          };
-        } else if (response.status === 410) {
-          // AustLII is gone - try alternative or generate synthetic content
-          console.log(`🔄 AustLII unavailable (410 Gone) - generating relevant legal content for: ${url}`);
-          return await this.generateRelevantLegalContent(url);
-        } else {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    // Simple fetch without enhanced features
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'LegalEase-Research-Bot/1.0',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
-      } catch (error) {
-        const isLastAttempt = attempt === maxRetries - 1;
+      });
+
+      if (response.ok) {
+        const html = await response.text();
+        const content = this.extractTextFromHtml(html);
+        const tags = this.extractTags(content, url);
         
-        if (this.isRetryableError(error) && !isLastAttempt) {
-          const backoffMs = Math.min(1000 * Math.pow(2, attempt), 10000); // Cap at 10s
-          console.log(`⏳ Attempt ${attempt + 1} failed for ${url}: ${error.message}. Retrying in ${backoffMs}ms...`);
-          await this.sleep(backoffMs);
-          continue;
-        } else {
-          // If all retries failed, generate synthetic legal content
-          console.log(`🔄 All retries failed for ${url} - generating relevant legal content`);
-          return await this.generateRelevantLegalContent(url);
-        }
+        await db.saveDocument({
+          url,
+          content,
+          tags,
+          jurisdiction: this.extractJurisdictionFromUrl(url),
+          document_type: this.extractDocumentTypeFromUrl(url).toLowerCase(),
+          synthetic: false
+        });
+        
+        return { content, tags, url, synthetic: false };
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+    } catch (error) {
+      console.warn(`Failed to fetch ${url}: ${error.message}`);
+      return await this.generateRelevantLegalContent(url);
     }
   }
 
@@ -4032,6 +4034,110 @@ app.delete('/api/admin/queries', async (req, res) => {
   } catch (error) {
     console.error('Error deleting old queries:', error);
     res.status(500).json({ error: 'Failed to delete old queries' });
+  }
+});
+
+// Fallback cleanup function
+async function cleanupInvalidDocumentsFallback() {
+  try {
+    const allDocuments = await db.getAllDocuments();
+    let cleanedCount = 0;
+    
+    for (const doc of allDocuments) {
+      const isInvalid = (
+        !doc.content || 
+        doc.content.length < 200 || 
+        doc.content.toLowerCase().includes('page not found') ||
+        doc.content.toLowerCase().includes('404') ||
+        doc.content.toLowerCase().includes('error occurred') ||
+        doc.content.toLowerCase().includes('access denied') ||
+        doc.content.toLowerCase().includes('temporarily unavailable')
+      );
+      
+      if (isInvalid) {
+        console.log(`🧹 Removing invalid document: ${doc.url}`);
+        await db.deleteDocument(doc.url);
+        cleanedCount++;
+      }
+    }
+    
+    console.log(`✅ Cleanup complete: Removed ${cleanedCount} invalid documents`);
+    return { removed: cleanedCount, total: allDocuments.length };
+    
+  } catch (error) {
+    console.error(`❌ Error during cleanup: ${error.message}`);
+    throw error;
+  }
+}
+
+// Document cleanup endpoint
+app.post('/api/admin/documents/cleanup', async (req, res) => {
+  try {
+    const documentFetcher = new StandaloneDocumentFetcher();
+    
+    let result;
+    if (documentFetcher.enhancedFetcher) {
+      result = await documentFetcher.enhancedFetcher.cleanupInvalidDocuments();
+    } else {
+      // Fallback cleanup implementation
+      result = await cleanupInvalidDocumentsFallback();
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Cleaned up ${result.removed} invalid documents out of ${result.total} total`,
+      removed: result.removed,
+      total: result.total
+    });
+  } catch (error) {
+    console.error('Error cleaning up documents:', error);
+    res.status(500).json({ error: 'Failed to cleanup documents' });
+  }
+});
+
+// Document validation endpoint
+app.post('/api/admin/documents/validate/:url', async (req, res) => {
+  try {
+    const url = decodeURIComponent(req.params.url);
+    const documentFetcher = new StandaloneDocumentFetcher();
+    
+    // Refetch document with enhanced validation
+    const result = await documentFetcher.enhancedFetcher.fetchDocument(url);
+    
+    res.json({
+      success: true,
+      url,
+      valid: !result.synthetic,
+      cached: result.cached,
+      synthetic: result.synthetic,
+      content_length: result.content.length,
+      tags: result.tags
+    });
+  } catch (error) {
+    console.error('Error validating document:', error);
+    res.status(500).json({ error: 'Failed to validate document' });
+  }
+});
+
+// Real-time admin monitoring endpoints
+app.get('/api/admin/stats/live', async (req, res) => {
+  try {
+    const stats = await adminApi.getLiveStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching live stats:', error);
+    res.status(500).json({ error: 'Failed to fetch live stats' });
+  }
+});
+
+app.get('/api/admin/activity/recent', async (req, res) => {
+  try {
+    const { limit = 20, since } = req.query;
+    const activity = await adminApi.getRecentActivity(parseInt(limit), since);
+    res.json(activity);
+  } catch (error) {
+    console.error('Error fetching recent activity:', error);
+    res.status(500).json({ error: 'Failed to fetch recent activity' });
   }
 });
 

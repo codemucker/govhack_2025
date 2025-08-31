@@ -46,6 +46,13 @@
             <h2>Documents ({{ pagination?.total || 0 }} total)</h2>
             <div class="purge-controls">
               <button 
+                @click="cleanupDocuments" 
+                class="btn btn-secondary"
+                :disabled="cleanupInProgress"
+              >
+                {{ cleanupInProgress ? '⏳ Cleaning...' : '🧹 Cleanup Invalid' }}
+              </button>
+              <button 
                 @click="showPurgeModal = true" 
                 class="btn btn-danger"
                 :disabled="documents.length === 0"
@@ -195,6 +202,7 @@ const availableDocumentTypes = ref<string[]>([])
 const deletingUrls = ref<Set<string>>(new Set())
 const showPurgeModal = ref(false)
 const purgeInProgress = ref<string | null>(null)
+const cleanupInProgress = ref(false)
 
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -347,6 +355,36 @@ const purgeDocuments = async (type: 'synthetic' | 'all') => {
     alert('Failed to purge documents. Please try again.')
   } finally {
     purgeInProgress.value = null
+  }
+}
+
+const cleanupDocuments = async () => {
+  if (!confirm('This will remove invalid documents (404 errors, empty content, etc.) from the database. Continue?')) {
+    return
+  }
+
+  try {
+    cleanupInProgress.value = true
+    
+    const response = await fetch('/api/admin/documents/cleanup', {
+      method: 'POST'
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      alert(`✅ Cleanup complete!\n\nRemoved: ${result.removed} invalid documents\nTotal: ${result.total} documents checked\n\n${result.message}`)
+      // Reload documents list
+      currentPage.value = 1
+      await loadDocuments()
+    } else {
+      alert(`❌ Cleanup failed: ${result.error}`)
+    }
+  } catch (error) {
+    console.error('Error cleaning up documents:', error)
+    alert('❌ Failed to cleanup documents. Please try again.')
+  } finally {
+    cleanupInProgress.value = false
   }
 }
 
