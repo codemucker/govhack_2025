@@ -336,7 +336,7 @@ async function identifyJurisdictions(query: string, location?: LocationInfo): Pr
   return jurisdictions.sort((a, b) => b.confidence - a.confidence);
 }
 
-async function generateRequirements(query: string, jurisdictions: JurisdictionInfo[], location?: LocationInfo): Promise<Requirement[]> {
+async function generateRequirements(query: string, jurisdictions: JurisdictionInfo[], location?: LocationInfo, referenceDataService?: any): Promise<Requirement[]> {
   const requirements: Requirement[] = [];
   const queryLower = query.toLowerCase();
 
@@ -443,7 +443,33 @@ async function generateRequirements(query: string, jurisdictions: JurisdictionIn
   return requirements;
 }
 
-async function findRelevantContacts(jurisdictions: JurisdictionInfo[], requirements: Requirement[]): Promise<ContactInfo[]> {
+async function findRelevantContacts(jurisdictions: JurisdictionInfo[], requirements: Requirement[], referenceDataService?: any): Promise<ContactInfo[]> {
+  let contacts: ContactInfo[] = [];
+  
+  if (referenceDataService) {
+    try {
+      // Use dynamic contact lookup from database
+      const jurisdictionNames = jurisdictions.map(j => j.name);
+      const dynamicContacts = await referenceDataService.findRelevantContacts(jurisdictionNames);
+      contacts = dynamicContacts;
+      
+      if (contacts.length === 0) {
+        console.warn('No dynamic contacts found, falling back to static contacts');
+        contacts = getStaticContacts(jurisdictions);
+      }
+    } catch (error) {
+      console.warn('Failed to get dynamic contacts, using static fallback:', error);
+      contacts = getStaticContacts(jurisdictions);
+    }
+  } else {
+    contacts = getStaticContacts(jurisdictions);
+  }
+  
+  return contacts;
+}
+
+// Fallback static contact method
+function getStaticContacts(jurisdictions: JurisdictionInfo[]): ContactInfo[] {
   const contacts: ContactInfo[] = [];
   
   // Add federal contacts
