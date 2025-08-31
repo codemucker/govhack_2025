@@ -1,0 +1,124 @@
+🔄 Database migrations completed
+📊 SQLite database initialized: /home/user/workspace/codemucker/govhack_2025/data/legalease.db
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/fa2001125/|ACT|Act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_reg/bcr2008140/|ACT|Regulation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/whsa2011218/|ACT|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_reg/fsr2002185/|ACT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/ba2004141/|ACT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/epa1997323/|ACT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_reg/epr2005390/|ACT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_reg/whsr2011308/|ACT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/epaaa1979389/|Australia|legal
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/pda2007236/|Australian Capital Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/fa2001107/|Australian Capital Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/act/consol_act/cpa2008294/|Australian Capital Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/whsa2011218/|Commonwealth|Act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/fwa2009114/|Commonwealth|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ea2007136/|Commonwealth|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/fsa1991109/|Federal|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/epbca1999588/|Federal|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_reg/fsr1994275/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/fgcoa2013329/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ncc2016391/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/bciipia2005430/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/neia1999330/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/wpoia1999395/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_reg/whsr2011308/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/saia2008296/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ma1958118/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_reg/mr1994227/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/aca2007219/|Federal|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/ba1993141/|NSW|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/whsa2011218/|NSW|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/fr2015364/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/fsr2015365/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/br2022302/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/hba1989197/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/poea1997160/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/poer2021360/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/wmaa2007194/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/lr2008285/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/whsr2017305/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_reg/eparr2000333/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/sepp2006226/|NSW|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/fa2004117/|NT|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/ba1993141/|NT|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/whsa2011218/|NT|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_reg/fsr2005183/|NT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_reg/br2014140/|NT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/empca1994323/|NT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_reg/empcr2017390/|NT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_reg/whsr2011308/|NT|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/cth/consol_act/ohs2011144/|National|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/la2007107/|New South Wales|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nsw/consol_act/fa200357/|New South Wales|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/pa269/|Northern Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/lga182/|Northern Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/nt/consol_act/fa102/|Northern Territory|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/pha2005170/|QLD|Act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/br2006291/|QLD|Regulation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/ba1975157/|QLD|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/epa1994323/|QLD|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/la1992107/|QLD|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/whsa2011218/|QLD|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/pa2016172/|QLD|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/fr2006488/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/fssr2006489/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/sdpwoa1971427/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/epr2008390/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/wmra2011396/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/lr1992216/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/ftra1999228/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/blr2001330/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/whsr2011308/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_reg/pr2017276/|QLD|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/fa200657/|Queensland|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/reala2017247/|Queensland|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/qld/consol_act/eesa2019293/|Queensland|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/fa2001125/|SA|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/whsa2012218/|SA|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_reg/fr2002185/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/dra1993161/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_reg/dr2019156/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/epa1993323/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_reg/epr2009390/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_reg/whsr2012308/|SA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/sa/consol_act/fsa1997115/|South Australia|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/fa2003117/|TAS|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/whsa2012218/|TAS|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_reg/fsr2004183/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/ba2000157/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_reg/br2014140/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/empca1994323/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_reg/empcr2017390/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_reg/whsr2012308/|TAS|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/lupaa1993179/|Tasmania|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/lga1993152/|Tasmania|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/tas/consol_act/fa2003102/|Tasmania|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/fa1984220/|VIC|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/ba1993141/|VIC|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/epa2017188/|VIC|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/fsr2007329/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/fr2007330/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/br2018126/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/pa1987184/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/epr2021284/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/wmaa2003201/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/lcra1998266/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/lr2019279/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_act/ohsa2004273/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/vic/consol_reg/ohsr2017305/|VIC|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/epa1986323/|WA|Act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/fa2008119/|WA|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/ba2011201/|WA|act
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/fr2009206/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/fsr2009207/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/br2012151/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/pa2005137/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/epr1987390/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/wmaa2007396/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/lca1988156/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/lcr1989216/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/whsa1984218/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_reg/whsr1996308/|WA|legislation
+https://www.austlii.edu.au/cgi-bin/viewdoc/au/legis/wa/consol_act/fa2008114/|Western Australia|act

@@ -5,18 +5,19 @@
  * and official Australian legislation integration
  */
 
-const crypto = require('crypto');
+import crypto from 'crypto';
+import fetch from 'node-fetch';
 
 // Use dynamic import for JSDOM to handle potential module issues
 let JSDOM;
 try {
-  const jsdomModule = require('jsdom');
+  const jsdomModule = await import('jsdom');
   JSDOM = jsdomModule.JSDOM;
 } catch (error) {
   console.warn('JSDOM not available, falling back to regex HTML parsing:', error.message);
 }
 
-class EnhancedDocumentFetcher {
+export class EnhancedDocumentFetcher {
   constructor(db) {
     this.db = db;
     this.maxRetries = 3;
@@ -670,4 +671,4 @@ Status: Synthetic - Original document unavailable
   }
 }
 
-module.exports = { EnhancedDocumentFetcher };
+// Export is now handled by the export class statement above

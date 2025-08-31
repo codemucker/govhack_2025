@@ -74,6 +74,27 @@
               <span class="activity-confidence" :class="getConfidenceClass(activity.confidence)">
                 {{ (activity.confidence * 100).toFixed(0) }}%
               </span>
+              <span class="activity-sources" v-if="activity.sources_count > 0">
+                📄 {{ activity.sources_count }} sources
+              </span>
+            </div>
+            <div v-if="activity.type === 'query' && activity.sources_used && activity.sources_used.length > 0" class="activity-sources-detail">
+              <div class="sources-header">
+                <strong>📋 Sources from ingested data:</strong>
+                <span class="ingestion-status" :class="allSourcesIngested(activity.sources_used) ? 'verified' : 'warning'">
+                  {{ allSourcesIngested(activity.sources_used) ? '✅ All verified' : '⚠️ Some external' }}
+                </span>
+              </div>
+              <div class="sources-list">
+                <div v-for="source in activity.sources_used.slice(0, 3)" :key="source.url" class="source-item">
+                  <span class="source-title">{{ source.title || extractTitleFromUrl(source.url) }}</span>
+                  <span class="source-jurisdiction">{{ source.jurisdiction || 'Unknown' }}</span>
+                  <span v-if="source.document_type" class="source-type">{{ source.document_type }}</span>
+                </div>
+                <div v-if="activity.sources_used.length > 3" class="sources-more">
+                  ... and {{ activity.sources_used.length - 3 }} more sources
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -315,6 +336,23 @@ const formatTimeAgo = (timestamp: string): string => {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   return time.toLocaleDateString()
+}
+
+const allSourcesIngested = (sources: any[]): boolean => {
+  if (!sources || sources.length === 0) return false
+  return sources.every(source => source.is_from_ingested_data !== false)
+}
+
+const extractTitleFromUrl = (url: string): string => {
+  if (!url) return 'Unknown Document'
+  try {
+    const urlObj = new URL(url)
+    const pathParts = urlObj.pathname.split('/').filter(Boolean)
+    const lastPart = pathParts[pathParts.length - 1] || urlObj.hostname
+    return lastPart.replace(/[-_]/g, ' ').replace(/\.[^.]*$/, '').substring(0, 40)
+  } catch {
+    return url.substring(0, 40)
+  }
 }
 
 const getConfidenceClass = (confidence: number): string => {
@@ -570,5 +608,95 @@ onUnmounted(() => {
 .question-cell {
   max-width: 300px;
   word-wrap: break-word;
+}
+
+/* Document sources styling */
+.activity-sources {
+  color: #6c757d;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.activity-sources-detail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+
+.sources-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ingestion-status {
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.ingestion-status.verified {
+  background: #d4edda;
+  color: #155724;
+}
+
+.ingestion-status.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+  background: white;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.source-title {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.source-jurisdiction {
+  background: #e7f3ff;
+  color: #0066cc;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.source-type {
+  background: #f0f0f0;
+  color: #666;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  text-transform: capitalize;
+}
+
+.sources-more {
+  font-style: italic;
+  color: #6c757d;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0.25rem;
 }
 </style>

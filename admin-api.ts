@@ -776,6 +776,7 @@ export class AdminApi {
           tokens_used,
           confidence,
           relevant,
+          sources_used,
           created_at as timestamp
         FROM queries 
       `;
@@ -797,11 +798,61 @@ export class AdminApi {
         timestamp: new Date(activity.timestamp).toISOString(),
         execution_time: activity.execution_time || 0,
         tokens_used: activity.tokens_used || 0,
-        confidence: parseFloat((activity.confidence || 0).toFixed(3))
+        confidence: parseFloat((activity.confidence || 0).toFixed(3)),
+        sources_used: JSON.parse(activity.sources_used || '[]'),
+        sources_count: JSON.parse(activity.sources_used || '[]').length
       }));
     } catch (error) {
       console.error('Error getting recent activity:', error);
       throw error;
+    }
+  }
+
+  // Get detailed document information for query sources
+  async getDocumentSources(sourcesList: any[]): Promise<any[]> {
+    try {
+      if (!sourcesList || sourcesList.length === 0) {
+        return [];
+      }
+
+      // Extract document URLs from sources
+      const documentUrls = sourcesList.map(source => source.url || source.document_url).filter(Boolean);
+      
+      if (documentUrls.length === 0) {
+        return sourcesList.map(source => ({
+          ...source,
+          document_type: 'unknown',
+          jurisdiction: source.jurisdiction || 'unknown'
+        }));
+      }
+
+      // Query database for document details
+      const placeholders = documentUrls.map(() => '?').join(',');
+      const documents = await this.db.allQuery(
+        `SELECT url, document_type, jurisdiction, tags, created_at FROM documents WHERE url IN (${placeholders})`,
+        documentUrls
+      );
+
+      // Create a lookup map
+      const docMap = new Map(documents.map(doc => [doc.url, doc]));
+
+      // Enrich sources with document metadata
+      return sourcesList.map(source => {
+        const docUrl = source.url || source.document_url;
+        const docInfo = docMap.get(docUrl);
+        
+        return {
+          ...source,
+          document_type: docInfo?.document_type || 'unknown',
+          jurisdiction: docInfo?.jurisdiction || source.jurisdiction || 'unknown',
+          tags: docInfo?.tags || '',
+          document_created_at: docInfo?.created_at,
+          is_from_ingested_data: !!docInfo // This confirms it's from our database
+        };
+      });
+    } catch (error) {
+      console.error('Error getting document sources:', error);
+      return sourcesList || [];
     }
   }
 }

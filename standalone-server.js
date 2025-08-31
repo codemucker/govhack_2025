@@ -1380,15 +1380,23 @@ class StandaloneDocumentFetcher {
   constructor() {
     this.discovery = new AustLIIDiscovery();
     this.queryAnalyzer = new QueryAnalyzer();
+    this.enhancedFetcher = null;
+    this.enhancedFetcherInitialized = false;
+  }
+
+  async initializeEnhancedFetcher() {
+    if (this.enhancedFetcherInitialized) return;
     
-    // Import enhanced document fetcher dynamically to avoid module conflicts
     try {
-      const { EnhancedDocumentFetcher } = require('./enhanced-document-fetcher.js');
+      const { EnhancedDocumentFetcher } = await import('./enhanced-document-fetcher.js');
       this.enhancedFetcher = new EnhancedDocumentFetcher(db);
+      console.log('✅ Enhanced document fetcher initialized successfully');
     } catch (error) {
       console.warn('Enhanced document fetcher not available, using fallback:', error.message);
       this.enhancedFetcher = null;
     }
+    
+    this.enhancedFetcherInitialized = true;
   }
 
   // Real web search method using HTTP-based search API
@@ -1537,6 +1545,9 @@ class StandaloneDocumentFetcher {
 
   // Enhanced document fetching using the new EnhancedDocumentFetcher
   async fetchAustLIIDocument(url) {
+    // Initialize enhanced fetcher if not already done
+    await this.initializeEnhancedFetcher();
+    
     if (this.enhancedFetcher) {
       return await this.enhancedFetcher.fetchDocument(url);
     } else {
@@ -3638,7 +3649,13 @@ app.post('/api/legal/ask', async (req, res) => {
       original_language: queryLanguage !== 'en' ? queryLanguage : null,
       answer: finalResponse.answer || finalResponse,
       ai_response: englishResponse ? JSON.stringify(englishResponse) : null,
-      sources_used: sources.map(s => s.url),
+      sources_used: sources.map(s => ({
+        url: s.url,
+        title: s.title,
+        jurisdiction: s.jurisdiction || location,
+        document_type: s.document_type || 'legal_document',
+        is_from_ingested_data: true // All sources from findOrDiscoverDocuments are from our database
+      })),
       jurisdiction: location || 'Australia',
       confidence: 0.9,
       execution_time: Date.now() - startTime,
@@ -4138,6 +4155,30 @@ app.get('/api/admin/activity/recent', async (req, res) => {
   } catch (error) {
     console.error('Error fetching recent activity:', error);
     res.status(500).json({ error: 'Failed to fetch recent activity' });
+  }
+});
+
+// Get document sources for a specific query
+app.get('/api/admin/query/:queryId/sources', async (req, res) => {
+  try {
+    const queryId = req.params.queryId;
+    const query = await adminApi.getQueryFlow(queryId);
+    
+    if (!query) {
+      return res.status(404).json({ error: 'Query not found' });
+    }
+
+    const sources = await adminApi.getDocumentSources(query.sources_used || []);
+    res.json({
+      queryId,
+      question: query.question,
+      sources_count: sources.length,
+      sources: sources,
+      all_from_ingested_data: sources.every(source => source.is_from_ingested_data)
+    });
+  } catch (error) {
+    console.error('Error fetching query sources:', error);
+    res.status(500).json({ error: 'Failed to fetch query sources' });
   }
 });
 
@@ -4667,7 +4708,33 @@ async function startServer() {
     }
   });
 
-  // Start the server
+  // Test API endpoint for document fetching
+app.post('/api/test/fetch', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+    
+    const documentFetcher = new StandaloneDocumentFetcher();
+    const result = await documentFetcher.fetchDocument(url);
+    
+    res.json({
+      success: true,
+      url,
+      valid: !result.synthetic,
+      cached: !!result.cached,
+      synthetic: result.synthetic || false,
+      content_length: result.content?.length || 0,
+      tags: result.tags
+    });
+  } catch (error) {
+    console.error('Test fetch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Start the server
   server.listen(PORT, () => {
     console.log(`🏛️  LegalEase Standalone Server running on http://localhost:${PORT}`);
     console.log(`📋 Health check: http://localhost:${PORT}/api/hello`);
