@@ -1,27 +1,109 @@
 #!/usr/bin/env node
 
 // Persistent SQLite Database with Disk Caching
-import sqlite3 from 'sqlite3';
+import * as sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { promises as fs } from 'fs';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Use Node.js style path resolution for better compatibility
+const __dirname = process.cwd();
 
 // Database and cache directories
 const DB_PATH = join(__dirname, 'data');
 const CACHE_PATH = join(__dirname, 'cache');
 const DATABASE_FILE = join(DB_PATH, 'legalease.db');
 
+// Type definitions
+export interface Document {
+  url: string;
+  content: string;
+  tags: string[] | string;
+  jurisdiction?: string;
+  document_type?: string;
+  synthetic?: boolean;
+  content_hash?: string;
+  cache_path?: string;
+  created_at?: Date;
+  updated_at?: Date;
+  cached?: boolean;
+}
+
+export interface Query {
+  id: string;
+  question: string;
+  translated_question?: string;
+  detected_language?: string;
+  original_language?: string;
+  answer?: string;
+  ai_response?: string;
+  sources_used?: any[];
+  jurisdiction?: string;
+  confidence?: number;
+  execution_time?: number;
+  tokens_used?: number;
+  relevant?: boolean;
+  relevance_reason?: string;
+  events_count?: number;
+  created_at?: Date;
+}
+
+export interface Authority {
+  id?: number;
+  name: string;
+  official_name?: string;
+  jurisdiction?: string;
+  jurisdiction_level?: string;
+  website?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  contact_chatbot?: string;
+  contact_hours?: string;
+  postal_address?: string;
+  last_updated?: string;
+  created_at?: string;
+}
+
+export interface DatabaseStats {
+  documents: number;
+  queries: number;
+  cache: CacheStats;
+  database_type: string;
+  database_path: string;
+  cache_path: string;
+  last_updated: Date;
+}
+
+export interface CacheStats {
+  files: number;
+  totalSize: number;
+  path: string;
+  error?: string;
+}
+
+export interface LegalTaxonomy {
+  legal_areas: Record<string, any>;
+  authority_types: Record<string, any>;
+  jurisdiction_legislation: Record<string, any>;
+  jurisdiction_authorities: Record<string, any>;
+}
+
+export interface QueryResult {
+  id: number;
+  changes: number;
+}
+
 export class PersistentDatabase {
+  private db: sqlite3.Database | null = null;
+  private isInitialized: boolean = false;
+
   constructor() {
     this.db = null;
     this.isInitialized = false;
   }
 
-  async initialize() {
+  async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     // Ensure directories exist
@@ -47,7 +129,7 @@ export class PersistentDatabase {
     console.log(`📊 SQLite database initialized: ${DATABASE_FILE}`);
   }
 
-  async createTables() {
+  async createTables(): Promise<void> {
     // Authorities table for contact information
     await this.runQuery(`
       CREATE TABLE IF NOT EXISTS authorities (
@@ -169,12 +251,12 @@ export class PersistentDatabase {
   }
 
   // Database migrations for existing databases
-  async runMigrations() {
+  async runMigrations(): Promise<void> {
     try {
       // Migration 1: Add translation flow columns to queries table
       await this.runQuery(`ALTER TABLE queries ADD COLUMN translated_question TEXT`);
       console.log('✅ Added translated_question column');
-    } catch (error) {
+    } catch (error: any) {
       // Column already exists, ignore
       if (!error.message.includes('duplicate column name')) {
         console.error('Migration error for translated_question:', error.message);
@@ -184,7 +266,7 @@ export class PersistentDatabase {
     try {
       await this.runQuery(`ALTER TABLE queries ADD COLUMN detected_language TEXT`);
       console.log('✅ Added detected_language column');
-    } catch (error) {
+    } catch (error: any) {
       if (!error.message.includes('duplicate column name')) {
         console.error('Migration error for detected_language:', error.message);
       }
@@ -193,7 +275,7 @@ export class PersistentDatabase {
     try {
       await this.runQuery(`ALTER TABLE queries ADD COLUMN original_language TEXT`);
       console.log('✅ Added original_language column');
-    } catch (error) {
+    } catch (error: any) {
       if (!error.message.includes('duplicate column name')) {
         console.error('Migration error for original_language:', error.message);
       }
@@ -202,7 +284,7 @@ export class PersistentDatabase {
     try {
       await this.runQuery(`ALTER TABLE queries ADD COLUMN ai_response TEXT`);
       console.log('✅ Added ai_response column');
-    } catch (error) {
+    } catch (error: any) {
       if (!error.message.includes('duplicate column name')) {
         console.error('Migration error for ai_response:', error.message);
       }
@@ -212,9 +294,13 @@ export class PersistentDatabase {
   }
 
   // Helper method to run queries with promise interface
-  runQuery(sql, params = []) {
+  runQuery(sql: string, params: any[] = []): Promise<QueryResult> {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(error) {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+      this.db.run(sql, params, function(error: Error | null) {
         if (error) {
           reject(error);
         } else {
@@ -225,9 +311,13 @@ export class PersistentDatabase {
   }
 
   // Helper method to get single row
-  getQuery(sql, params = []) {
+  getQuery(sql: string, params: any[] = []): Promise<any> {
     return new Promise((resolve, reject) => {
-      this.db.get(sql, params, (error, row) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+      this.db.get(sql, params, (error: Error | null, row: any) => {
         if (error) {
           reject(error);
         } else {
@@ -238,9 +328,13 @@ export class PersistentDatabase {
   }
 
   // Helper method to get all rows
-  allQuery(sql, params = []) {
+  allQuery(sql: string, params: any[] = []): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(sql, params, (error, rows) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+      this.db.all(sql, params, (error: Error | null, rows: any[]) => {
         if (error) {
           reject(error);
         } else {
@@ -251,7 +345,7 @@ export class PersistentDatabase {
   }
 
   // Document operations with disk caching
-  async saveDocument(doc) {
+  async saveDocument(doc: Document): Promise<Document> {
     if (!doc.url) throw new Error('Document must have URL');
     
     const contentHash = crypto.createHash('md5').update(doc.content).digest('hex');
@@ -290,7 +384,7 @@ export class PersistentDatabase {
     };
   }
 
-  async getDocument(url) {
+  async getDocument(url: string): Promise<Document | null> {
     const row = await this.getQuery('SELECT * FROM documents WHERE url = ?', [url]);
     
     if (!row) return null;
@@ -309,7 +403,7 @@ export class PersistentDatabase {
     return {
       url: row.url,
       content: fullContent,
-      tags: row.tags ? row.tags.split(',').filter(t => t.length > 0) : [],
+      tags: row.tags ? row.tags.split(',').filter((t: string) => t.length > 0) : [],
       jurisdiction: row.jurisdiction,
       document_type: row.document_type,
       synthetic: row.synthetic,
@@ -318,7 +412,7 @@ export class PersistentDatabase {
     };
   }
 
-  async findDocuments(searchTerm) {
+  async findDocuments(searchTerm: string): Promise<Document[]> {
     if (!searchTerm) return [];
     
     const rows = await this.allQuery(`
@@ -328,7 +422,7 @@ export class PersistentDatabase {
       LIMIT 20
     `, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
 
-    const results = [];
+    const results: Document[] = [];
     for (const row of rows) {
       const doc = await this.getDocument(row.url);
       if (doc) results.push(doc);
@@ -337,9 +431,9 @@ export class PersistentDatabase {
     return results;
   }
 
-  async getAllDocuments() {
+  async getAllDocuments(): Promise<Document[]> {
     const rows = await this.allQuery('SELECT url FROM documents ORDER BY created_at DESC');
-    const results = [];
+    const results: Document[] = [];
     
     for (const row of rows) {
       const doc = await this.getDocument(row.url);
@@ -349,9 +443,13 @@ export class PersistentDatabase {
     return results;
   }
 
-  getDocumentCount() {
+  getDocumentCount(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.db.get('SELECT COUNT(*) as count FROM documents', (error, row) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+      this.db.get('SELECT COUNT(*) as count FROM documents', (error: Error | null, row: any) => {
         if (error) reject(error);
         else resolve(row.count);
       });
@@ -359,7 +457,7 @@ export class PersistentDatabase {
   }
 
   // Query operations
-  async saveQuery(query) {
+  async saveQuery(query: Query): Promise<Query> {
     if (!query.id) throw new Error('Query must have ID');
     
     await this.runQuery(`
@@ -388,7 +486,7 @@ export class PersistentDatabase {
     return query;
   }
 
-  async getQueryById(id) {
+  async getQueryById(id: string): Promise<Query | null> {
     const row = await this.getQuery('SELECT * FROM queries WHERE id = ?', [id]);
     if (!row) return null;
 
@@ -399,23 +497,27 @@ export class PersistentDatabase {
     };
   }
 
-  async getRecentQueries(limit = 10) {
+  async getRecentQueries(limit: number = 10): Promise<Query[]> {
     const rows = await this.allQuery(`
       SELECT * FROM queries 
       ORDER BY created_at DESC 
       LIMIT ?
     `, [limit]);
 
-    return rows.map(row => ({
+    return rows.map((row: any) => ({
       ...row,
       sources_used: JSON.parse(row.sources_used || '[]'),
       created_at: new Date(row.created_at)
     }));
   }
 
-  getQueryCount() {
+  getQueryCount(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.db.get('SELECT COUNT(*) as count FROM queries', (error, row) => {
+      if (!this.db) {
+        reject(new Error('Database not initialized'));
+        return;
+      }
+      this.db.get('SELECT COUNT(*) as count FROM queries', (error: Error | null, row: any) => {
         if (error) reject(error);
         else resolve(row.count);
       });
@@ -423,7 +525,7 @@ export class PersistentDatabase {
   }
 
   // Database statistics
-  async getStats() {
+  async getStats(): Promise<DatabaseStats> {
     const [docCount, queryCount, cacheStats] = await Promise.all([
       this.getDocumentCount(),
       this.getQueryCount(),
@@ -441,7 +543,7 @@ export class PersistentDatabase {
     };
   }
 
-  async getCacheStats() {
+  async getCacheStats(): Promise<CacheStats> {
     try {
       const files = await fs.readdir(CACHE_PATH);
       const cacheFiles = files.filter(f => f.endsWith('.txt'));
@@ -457,7 +559,7 @@ export class PersistentDatabase {
         totalSize: Math.round(totalSize / 1024), // KB
         path: CACHE_PATH
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         files: 0,
         totalSize: 0,
@@ -468,7 +570,7 @@ export class PersistentDatabase {
   }
 
   // Clear data (for testing)
-  async clear() {
+  async clear(): Promise<void> {
     await this.runQuery('DELETE FROM documents');
     await this.runQuery('DELETE FROM queries');
     
@@ -480,7 +582,7 @@ export class PersistentDatabase {
           await fs.unlink(join(CACHE_PATH, file));
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Error clearing cache:', error.message);
     }
 
@@ -488,7 +590,7 @@ export class PersistentDatabase {
   }
 
   // Authority management methods
-  async saveAuthority(authorityData) {
+  async saveAuthority(authorityData: Authority): Promise<void> {
     const {
       name,
       official_name,
@@ -514,9 +616,9 @@ export class PersistentDatabase {
     ]);
   }
 
-  async getAuthority(name, jurisdiction = null) {
+  async getAuthority(name: string, jurisdiction: string | null = null): Promise<Authority | null> {
     let query = 'SELECT * FROM authorities WHERE name = ?';
-    let params = [name];
+    let params: any[] = [name];
     
     if (jurisdiction) {
       query += ' AND jurisdiction = ?';
@@ -528,7 +630,7 @@ export class PersistentDatabase {
     return await this.getQuery(query, params);
   }
 
-  async findAuthorities(searchTerm) {
+  async findAuthorities(searchTerm: string): Promise<Authority[]> {
     const rows = await this.allQuery(`
       SELECT * FROM authorities 
       WHERE name LIKE ? OR official_name LIKE ? OR jurisdiction LIKE ?
@@ -538,17 +640,17 @@ export class PersistentDatabase {
     return rows;
   }
 
-  async getAllAuthorities() {
+  async getAllAuthorities(): Promise<Authority[]> {
     return await this.allQuery('SELECT * FROM authorities ORDER BY name ASC');
   }
 
-  async getAuthorityCount() {
+  async getAuthorityCount(): Promise<number> {
     const row = await this.getQuery('SELECT COUNT(*) as count FROM authorities');
     return row ? row.count : 0;
   }
 
   // Legal taxonomy operations
-  async seedLegalTaxonomy(taxonomyData) {
+  async seedLegalTaxonomy(taxonomyData: any): Promise<void> {
     // Clear existing data
     await this.runQuery('DELETE FROM legal_areas');
     await this.runQuery('DELETE FROM authority_types');
@@ -562,10 +664,10 @@ export class PersistentDatabase {
         VALUES (?, ?, ?, ?, ?)
       `, [
         areaId,
-        JSON.stringify(areaData.keywords),
-        JSON.stringify(areaData.patterns),
-        JSON.stringify(areaData.authorities),
-        areaData.description
+        JSON.stringify((areaData as any).keywords),
+        JSON.stringify((areaData as any).patterns),
+        JSON.stringify((areaData as any).authorities),
+        (areaData as any).description
       ]);
     }
 
@@ -576,40 +678,40 @@ export class PersistentDatabase {
         VALUES (?, ?, ?, ?)
       `, [
         typeId,
-        typeData.name,
-        typeData.description,
-        typeData.contact_type
+        (typeData as any).name,
+        (typeData as any).description,
+        (typeData as any).contact_type
       ]);
     }
 
     // Seed jurisdiction legislation
     for (const [jurisdiction, jurisdictionData] of Object.entries(taxonomyData.jurisdiction_legislation)) {
-      for (const [legalArea, legislationData] of Object.entries(jurisdictionData)) {
+      for (const [legalArea, legislationData] of Object.entries(jurisdictionData as any)) {
         await this.runQuery(`
           INSERT INTO jurisdiction_legislation (jurisdiction, legal_area, title, url)
           VALUES (?, ?, ?, ?)
         `, [
           jurisdiction,
           legalArea,
-          legislationData.title,
-          legislationData.url
+          (legislationData as any).title,
+          (legislationData as any).url
         ]);
       }
     }
 
     // Seed jurisdiction authorities
     for (const [jurisdiction, jurisdictionData] of Object.entries(taxonomyData.jurisdiction_authorities)) {
-      for (const [authorityType, authorityData] of Object.entries(jurisdictionData)) {
+      for (const [authorityType, authorityData] of Object.entries(jurisdictionData as any)) {
         await this.runQuery(`
           INSERT INTO jurisdiction_authorities (jurisdiction, authority_type, title, url, phone, email)
           VALUES (?, ?, ?, ?, ?, ?)
         `, [
           jurisdiction,
           authorityType,
-          authorityData.title,
-          authorityData.url,
-          authorityData.phone,
-          authorityData.email
+          (authorityData as any).title,
+          (authorityData as any).url,
+          (authorityData as any).phone,
+          (authorityData as any).email
         ]);
       }
     }
@@ -617,9 +719,9 @@ export class PersistentDatabase {
     console.log('🏛️ Legal taxonomy data seeded to database');
   }
 
-  async getLegalAreas() {
+  async getLegalAreas(): Promise<Record<string, any>> {
     const rows = await this.allQuery('SELECT * FROM legal_areas');
-    const result = {};
+    const result: Record<string, any> = {};
     for (const row of rows) {
       result[row.id] = {
         keywords: JSON.parse(row.keywords),
@@ -631,9 +733,9 @@ export class PersistentDatabase {
     return result;
   }
 
-  async getAuthorityTypes() {
+  async getAuthorityTypes(): Promise<Record<string, any>> {
     const rows = await this.allQuery('SELECT * FROM authority_types');
-    const result = {};
+    const result: Record<string, any> = {};
     for (const row of rows) {
       result[row.id] = {
         name: row.name,
@@ -644,9 +746,9 @@ export class PersistentDatabase {
     return result;
   }
 
-  async getJurisdictionLegislation() {
+  async getJurisdictionLegislation(): Promise<Record<string, any>> {
     const rows = await this.allQuery('SELECT * FROM jurisdiction_legislation');
-    const result = {};
+    const result: Record<string, any> = {};
     for (const row of rows) {
       if (!result[row.jurisdiction]) {
         result[row.jurisdiction] = {};
@@ -659,9 +761,9 @@ export class PersistentDatabase {
     return result;
   }
 
-  async getJurisdictionAuthorities() {
+  async getJurisdictionAuthorities(): Promise<Record<string, any>> {
     const rows = await this.allQuery('SELECT * FROM jurisdiction_authorities');
-    const result = {};
+    const result: Record<string, any> = {};
     for (const row of rows) {
       if (!result[row.jurisdiction]) {
         result[row.jurisdiction] = {};
@@ -676,7 +778,7 @@ export class PersistentDatabase {
     return result;
   }
 
-  async getLegalTaxonomy() {
+  async getLegalTaxonomy(): Promise<LegalTaxonomy> {
     const [legal_areas, authority_types, jurisdiction_legislation, jurisdiction_authorities] = await Promise.all([
       this.getLegalAreas(),
       this.getAuthorityTypes(),
@@ -693,10 +795,10 @@ export class PersistentDatabase {
   }
 
   // Graceful shutdown
-  async close() {
+  async close(): Promise<void> {
     if (this.db) {
       return new Promise((resolve) => {
-        this.db.close((err) => {
+        this.db!.close((err) => {
           if (err) console.error('Error closing database:', err);
           else console.log('📊 Database connection closed');
           resolve();
