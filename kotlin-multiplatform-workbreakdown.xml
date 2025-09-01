@@ -1,0 +1,824 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workBreakdown>
+  <project>
+    <name>LegalEase Kotlin Multiplatform Reimplementation</name>
+    <description>Comprehensive reimplementation of the LegalEase AI-powered regulatory navigation platform using Kotlin Multiplatform and Compose Multiplatform.</description>
+    <version>1.0.0</version>
+    <kotlinVersion>2.2+</kotlinVersion>
+    <buildTool>gradle</buildTool>
+    <targets>
+      <target>wasmjs-frontend</target>
+      <target>ktor-backend</target>
+      <target>admin-area</target>
+      <target>android-mobile-user</target>
+      <target>android-mobile-admin</target>
+      <target>ios-mobile-user</target>
+      <target>ios-mobile-admin</target>
+    </targets>
+  </project>
+
+  <antiCheatProtections>
+    <protection name="test-verification">
+      <description>All tests must pass before marking any task complete</description>
+      <enforcement>mandatory</enforcement>
+      <verification>automated</verification>
+    </protection>
+    <protection name="no-mocking-data">
+      <description>No hardcoded or mocked data allowed - all data must come from real sources</description>
+      <enforcement>mandatory</enforcement>
+      <verification>code-review</verification>
+    </protection>
+    <protection name="no-disabled-tests">
+      <description>Previous tests cannot be disabled or commented out</description>
+      <enforcement>mandatory</enforcement>
+      <verification>automated</verification>
+    </protection>
+    <protection name="code-review">
+      <description>LLM must review code against requirements after each milestone</description>
+      <enforcement>mandatory</enforcement>
+      <verification>manual</verification>
+    </protection>
+    <protection name="no-over-engineering">
+      <description>Code must not be over-engineered beyond requirements</description>
+      <enforcement>mandatory</enforcement>
+      <verification>code-review</verification>
+    </protection>
+    <protection name="common-code-requirement">
+      <description>As much code as possible must be in Kotlin common modules</description>
+      <enforcement>mandatory</enforcement>
+      <verification>code-review</verification>
+    </protection>
+  </antiCheatProtections>
+
+  <milestones>
+    <milestone id="M1" name="Project Setup and Architecture">
+      <description>Initial project setup with Kotlin Multiplatform structure</description>
+      <tasks>
+        <task id="T1.1" type="setup" priority="high" estimated="4h">
+          <title>Initialize Kotlin Multiplatform project structure</title>
+          <description>Create base Gradle project with KMP configuration for all target platforms</description>
+          <requirements>
+            <requirement>Kotlin 2.2+ configuration</requirement>
+            <requirement>Gradle build scripts for all targets</requirement>
+            <requirement>ktlint and detekt configuration</requirement>
+            <requirement>Unit testing framework setup (kotlin.test)</requirement>
+            <requirement>UI testing framework setup</requirement>
+          </requirements>
+          <deliverables>
+            <deliverable>build.gradle.kts files for all modules</deliverable>
+            <deliverable>gradle.properties with version catalog</deliverable>
+            <deliverable>ktlint.gradle.kts and detekt.yml</deliverable>
+            <deliverable>Basic project structure with common/android/ios/wasmjs modules</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>gradle build succeeds on all targets</criterion>
+            <criterion>ktlint and detekt run without errors</criterion>
+            <criterion>sample unit test passes on all platforms</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No sample/template code remains</check>
+            <check>All configuration is production-ready</check>
+            <check>Tests actually verify functionality</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T1.2" type="architecture" priority="high" estimated="3h">
+          <title>Define common data models and interfaces</title>
+          <description>Create common Kotlin data classes and interfaces based on current TypeScript models</description>
+          <requirements>
+            <requirement>Convert all TypeScript interfaces to Kotlin data classes</requirement>
+            <requirement>Implement proper serialization (kotlinx.serialization)</requirement>
+            <requirement>Define repository interfaces</requirement>
+            <requirement>Create domain models separate from API models</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T1.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>commonMain/kotlin/models/ with all data models</deliverable>
+            <deliverable>commonMain/kotlin/repository/ interfaces</deliverable>
+            <deliverable>commonMain/kotlin/domain/ domain models</deliverable>
+            <deliverable>Comprehensive unit tests for serialization</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All models serialize/deserialize correctly</criterion>
+            <criterion>Unit tests cover all data transformations</criterion>
+            <criterion>Models match current API contract</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No hardcoded sample data in models</check>
+            <check>All models have proper validation</check>
+            <check>Serialization tests use real data scenarios</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T1.3" type="architecture" priority="medium" estimated="2h">
+          <title>Setup dependency injection framework</title>
+          <description>Configure Koin or similar DI framework for multiplatform use</description>
+          <requirements>
+            <requirement>DI framework working on all platforms</requirement>
+            <requirement>Module definitions for each layer</requirement>
+            <requirement>Platform-specific implementations</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T1.2</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>DI module definitions</deliverable>
+            <deliverable>Platform-specific DI setup</deliverable>
+            <deliverable>Integration tests for DI configuration</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>DI works correctly on all platforms</criterion>
+            <criterion>No circular dependencies</criterion>
+            <criterion>All interfaces have implementations</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No singleton anti-patterns</check>
+            <check>Proper separation of concerns</check>
+            <check>Tests verify actual injection behavior</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M2" name="Backend API Implementation">
+      <description>Implement Ktor backend with all LegalEase API endpoints</description>
+      <dependencies>
+        <dependency>M1</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T2.1" type="backend" priority="high" estimated="6h">
+          <title>Setup Ktor server with routing</title>
+          <description>Create Ktor application with all required endpoints from current TypeScript API</description>
+          <requirements>
+            <requirement>Ktor server configuration</requirement>
+            <requirement>All API routes from api/triage.ts, api/hello.ts, api/site.ts</requirement>
+            <requirement>Content negotiation (JSON)</requirement>
+            <requirement>CORS configuration</requirement>
+            <requirement>Error handling middleware</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T1.3</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Application.kt with server setup</deliverable>
+            <deliverable>Routing modules for all endpoints</deliverable>
+            <deliverable>Middleware configuration</deliverable>
+            <deliverable>Integration tests for all routes</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All API endpoints return correct status codes</criterion>
+            <criterion>JSON serialization works correctly</criterion>
+            <criterion>CORS headers are properly set</criterion>
+            <criterion>Error handling returns appropriate responses</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No hardcoded responses</check>
+            <check>Actual business logic implementation required</check>
+            <check>Tests use real HTTP requests</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T2.2" type="backend" priority="high" estimated="8h">
+          <title>Implement AI triage service logic</title>
+          <description>Port the complex triage logic from TypeScript to Kotlin</description>
+          <requirements>
+            <requirement>Location extraction and mapping</requirement>
+            <requirement>Jurisdiction identification</requirement>
+            <requirement>Requirements generation</requirement>
+            <requirement>Contact information lookup</requirement>
+            <requirement>Confidence calculation</requirement>
+            <requirement>All helper functions from triage.ts</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T2.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>TriageService.kt with all business logic</deliverable>
+            <deliverable>LocationService.kt for location processing</deliverable>
+            <deliverable>JurisdictionService.kt for jurisdiction logic</deliverable>
+            <deliverable>Comprehensive unit tests</deliverable>
+            <deliverable>Integration tests with real queries</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All test cases from current system pass</criterion>
+            <criterion>Results match current TypeScript implementation</criterion>
+            <criterion>Business logic is properly separated from API layer</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No simplified or mocked business logic</check>
+            <check>All edge cases must be handled</check>
+            <check>Tests verify actual AI triage results</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T2.3" type="backend" priority="medium" estimated="4h">
+          <title>Database integration with Exposed</title>
+          <description>Setup database layer using Kotlin Exposed ORM</description>
+          <requirements>
+            <requirement>Database schema matching current SQLite structure</requirement>
+            <requirement>Migration scripts</requirement>
+            <requirement>Repository implementations</requirement>
+            <requirement>Connection pooling</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T2.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Database schema definitions</deliverable>
+            <deliverable>Migration scripts</deliverable>
+            <deliverable>Repository implementations</deliverable>
+            <deliverable>Database integration tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All database operations work correctly</criterion>
+            <criterion>Migrations run without errors</criterion>
+            <criterion>Data integrity is maintained</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No in-memory only databases for production</check>
+            <check>Proper transaction handling required</check>
+            <check>Tests use real database operations</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M3" name="Common UI Components">
+      <description>Implement shared UI components using Compose Multiplatform</description>
+      <dependencies>
+        <dependency>M2</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T3.1" type="ui" priority="high" estimated="6h">
+          <title>Core UI components with Material Design</title>
+          <description>Create reusable Compose components based on Vue.js components</description>
+          <requirements>
+            <requirement>Convert all Vue components to Compose</requirement>
+            <requirement>Material Design 3 theming</requirement>
+            <requirement>Dark/light theme support</requirement>
+            <requirement>Responsive design for different screen sizes</requirement>
+            <requirement>Accessibility support</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T2.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>commonMain/kotlin/ui/components/ with all components</deliverable>
+            <deliverable>Material3 theme implementation</deliverable>
+            <deliverable>Preview functions for all components</deliverable>
+            <deliverable>UI tests for all components</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All components render correctly</criterion>
+            <criterion>Theme switching works properly</criterion>
+            <criterion>Accessibility features are functional</criterion>
+            <criterion>Components work on all target platforms</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No placeholder or dummy components</check>
+            <check>All interactive features must be functional</check>
+            <check>UI tests verify actual user interactions</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T3.2" type="ui" priority="high" estimated="5h">
+          <title>Search and results display components</title>
+          <description>Implement the main search interface and results display</description>
+          <requirements>
+            <requirement>Search form with validation</requirement>
+            <requirement>Loading states and animations</requirement>
+            <requirement>Results display with all features from SearchResults.vue</requirement>
+            <requirement>Export and sharing functionality</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T3.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>SearchForm.kt composable</deliverable>
+            <deliverable>SearchResults.kt composable</deliverable>
+            <deliverable>LoadingSpinner.kt composable</deliverable>
+            <deliverable>ExportDialog.kt composable</deliverable>
+            <deliverable>UI tests for search flow</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Search form validates input correctly</criterion>
+            <criterion>Results display all required information</criterion>
+            <criterion>Export functionality works</criterion>
+            <criterion>Loading states are properly managed</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No static or hardcoded results</check>
+            <check>Search must connect to real backend</check>
+            <check>All interactive features must be functional</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T3.3" type="ui" priority="medium" estimated="4h">
+          <title>Navigation and state management</title>
+          <description>Implement navigation and shared state management across platforms</description>
+          <requirements>
+            <requirement>Navigation component for multiplatform</requirement>
+            <requirement>State management solution (ViewModel or similar)</requirement>
+            <requirement>Deep linking support</requirement>
+            <requirement>Back button handling</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T3.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Navigation setup for all platforms</deliverable>
+            <deliverable>ViewModels for all screens</deliverable>
+            <deliverable>State management implementation</deliverable>
+            <deliverable>Deep linking configuration</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Navigation works on all platforms</criterion>
+            <criterion>State is properly preserved</criterion>
+            <criterion>Deep links function correctly</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Navigation must handle all edge cases</check>
+            <check>State management must be robust</check>
+            <check>No simplified navigation patterns</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M4" name="WASM Frontend Implementation">
+      <description>Implement web frontend using Kotlin/WASM and Compose for Web</description>
+      <dependencies>
+        <dependency>M3</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T4.1" type="frontend" priority="high" estimated="5h">
+          <title>WASM web application setup</title>
+          <description>Configure Kotlin/WASM build and web application structure</description>
+          <requirements>
+            <requirement>Kotlin/WASM compilation configuration</requirement>
+            <requirement>HTML template and resource bundling</requirement>
+            <requirement>Web-specific platform implementations</requirement>
+            <requirement>Development server setup</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T3.3</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>wasmJs module configuration</deliverable>
+            <deliverable>index.html template</deliverable>
+            <deliverable>Web-specific implementations</deliverable>
+            <deliverable>Development server configuration</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>WASM application loads in browser</criterion>
+            <criterion>All common components render correctly</criterion>
+            <criterion>Development server works properly</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Full functionality must be implemented</check>
+            <check>No browser-specific workarounds</check>
+            <check>Performance must be acceptable</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T4.2" type="frontend" priority="high" estimated="4h">
+          <title>Web-specific features and optimizations</title>
+          <description>Implement web-specific features like PWA, SEO, and performance optimizations</description>
+          <requirements>
+            <requirement>Progressive Web App configuration</requirement>
+            <requirement>SEO meta tags and structured data</requirement>
+            <requirement>Web performance optimizations</requirement>
+            <requirement>Browser compatibility testing</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T4.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>PWA manifest and service worker</deliverable>
+            <deliverable>SEO optimizations</deliverable>
+            <deliverable>Performance monitoring</deliverable>
+            <deliverable>Cross-browser compatibility</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>PWA features work correctly</criterion>
+            <criterion>SEO metadata is properly configured</criterion>
+            <criterion>Performance meets benchmarks</criterion>
+            <criterion>Works in all major browsers</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>PWA must be fully functional offline</check>
+            <check>Performance optimizations must be measurable</check>
+            <check>Cross-browser testing must be comprehensive</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M5" name="Android Applications">
+      <description>Implement Android apps for both users and admins</description>
+      <dependencies>
+        <dependency>M3</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T5.1" type="mobile" priority="high" estimated="6h">
+          <title>Android user application</title>
+          <description>Build Android app for general users with all LegalEase features</description>
+          <requirements>
+            <requirement>Android module with Compose UI</requirement>
+            <requirement>All features from web application</requirement>
+            <requirement>Android-specific optimizations</requirement>
+            <requirement>Material Design adherence</requirement>
+            <requirement>Proper app permissions and security</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T3.3</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Android user app module</deliverable>
+            <deliverable>MainActivity and app structure</deliverable>
+            <deliverable>Android-specific UI implementations</deliverable>
+            <deliverable>App manifest with proper permissions</deliverable>
+            <deliverable>Instrumented tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>App installs and runs correctly</criterion>
+            <criterion>All features work as expected</criterion>
+            <criterion>UI follows Android design guidelines</criterion>
+            <criterion>Performance is acceptable on various devices</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>No mock or placeholder implementations</check>
+            <check>All features must be fully functional</check>
+            <check>Must handle all Android lifecycle events</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T5.2" type="mobile" priority="medium" estimated="4h">
+          <title>Android admin application</title>
+          <description>Build separate Android app for administrative functions</description>
+          <requirements>
+            <requirement>Admin-specific UI components</requirement>
+            <requirement>Document management features</requirement>
+            <requirement>User management capabilities</requirement>
+            <requirement>Analytics and reporting</requirement>
+            <requirement>Enhanced security features</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T5.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Android admin app module</deliverable>
+            <deliverable>Admin-specific screens and components</deliverable>
+            <deliverable>Security implementations</deliverable>
+            <deliverable>Admin functionality tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Admin features work correctly</criterion>
+            <criterion>Security measures are properly implemented</criterion>
+            <criterion>Analytics and reporting function</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Security features must be robust</check>
+            <check>Admin functions must be complete</check>
+            <check>No shortcuts in authentication/authorization</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M6" name="iOS Applications">
+      <description>Implement iOS apps for both users and admins</description>
+      <dependencies>
+        <dependency>M3</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T6.1" type="mobile" priority="high" estimated="6h">
+          <title>iOS user application</title>
+          <description>Build iOS app for general users with all LegalEase features</description>
+          <requirements>
+            <requirement>iOS module with Compose Multiplatform</requirement>
+            <requirement>All features from web/Android applications</requirement>
+            <requirement>iOS-specific optimizations</requirement>
+            <requirement>Human Interface Guidelines adherence</requirement>
+            <requirement>App Store compliance</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T3.3</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>iOS user app module</deliverable>
+            <deliverable>iOS-specific implementations</deliverable>
+            <deliverable>Xcode project configuration</deliverable>
+            <deliverable>iOS UI tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>App builds and runs on iOS simulator</criterion>
+            <criterion>All features work correctly on iOS</criterion>
+            <criterion>UI follows iOS design guidelines</criterion>
+            <criterion>Performance is acceptable</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Must work on actual iOS devices</check>
+            <check>All platform-specific features implemented</check>
+            <check>No placeholder iOS implementations</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T6.2" type="mobile" priority="medium" estimated="4h">
+          <title>iOS admin application</title>
+          <description>Build separate iOS app for administrative functions</description>
+          <requirements>
+            <requirement>Admin-specific UI for iOS</requirement>
+            <requirement>Same admin features as Android app</requirement>
+            <requirement>iOS-specific security implementations</requirement>
+            <requirement>App Store submission ready</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T6.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>iOS admin app module</deliverable>
+            <deliverable>iOS admin-specific features</deliverable>
+            <deliverable>Security implementations for iOS</deliverable>
+            <deliverable>iOS admin app tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Admin app works correctly on iOS</criterion>
+            <criterion>Security features are iOS-compliant</criterion>
+            <criterion>Ready for App Store submission</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Must match Android admin functionality</check>
+            <check>iOS security patterns must be followed</check>
+            <check>No reduced functionality compared to other platforms</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M7" name="Admin Web Interface">
+      <description>Implement comprehensive admin interface for web</description>
+      <dependencies>
+        <dependency>M4</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T7.1" type="admin" priority="high" estimated="5h">
+          <title>Admin dashboard and analytics</title>
+          <description>Create comprehensive admin dashboard with analytics and monitoring</description>
+          <requirements>
+            <requirement>Dashboard with key metrics</requirement>
+            <requirement>User activity monitoring</requirement>
+            <requirement>System health monitoring</requirement>
+            <requirement>Query analytics and insights</requirement>
+            <requirement>Export capabilities</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T4.2</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Admin dashboard screens</deliverable>
+            <deliverable>Analytics components and charts</deliverable>
+            <deliverable>Monitoring and alerting system</deliverable>
+            <deliverable>Admin API endpoints</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Dashboard displays correct metrics</criterion>
+            <criterion>Analytics provide meaningful insights</criterion>
+            <criterion>Monitoring systems work correctly</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Analytics must use real data</check>
+            <check>Monitoring must be functional</check>
+            <check>No fake or generated metrics</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T7.2" type="admin" priority="medium" estimated="4h">
+          <title>Document and content management</title>
+          <description>Implement document management and content administration</description>
+          <requirements>
+            <requirement>Document upload and management</requirement>
+            <requirement>Legal taxonomy management</requirement>
+            <requirement>Content moderation tools</requirement>
+            <requirement>Bulk operations</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T7.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Document management interface</deliverable>
+            <deliverable>Content management tools</deliverable>
+            <deliverable>Bulk operation capabilities</deliverable>
+            <deliverable>Content management tests</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Document operations work correctly</criterion>
+            <criterion>Content management is intuitive</criterion>
+            <criterion>Bulk operations perform efficiently</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Document operations must be real</check>
+            <check>Content management must be fully functional</check>
+            <check>No simplified admin interfaces</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+
+    <milestone id="M8" name="Testing and Quality Assurance">
+      <description>Comprehensive testing suite and quality assurance</description>
+      <dependencies>
+        <dependency>M5</dependency>
+        <dependency>M6</dependency>
+        <dependency>M7</dependency>
+      </dependencies>
+      <tasks>
+        <task id="T8.1" type="testing" priority="high" estimated="6h">
+          <title>End-to-end testing suite</title>
+          <description>Implement comprehensive E2E testing covering all platforms and features</description>
+          <requirements>
+            <requirement>E2E tests for all user journeys</requirement>
+            <requirement>Cross-platform testing automation</requirement>
+            <requirement>API integration testing</requirement>
+            <requirement>Performance testing</requirement>
+            <requirement>Security testing</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T7.2</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>E2E test suite for all platforms</deliverable>
+            <deliverable>API integration tests</deliverable>
+            <deliverable>Performance benchmarks</deliverable>
+            <deliverable>Security test suite</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>All E2E tests pass on all platforms</criterion>
+            <criterion>Performance meets requirements</criterion>
+            <criterion>Security tests verify protection measures</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Tests must cover real user scenarios</check>
+            <check>No superficial or fake tests</check>
+            <check>Performance tests must use realistic data</check>
+          </antiCheatChecks>
+        </task>
+
+        <task id="T8.2" type="quality" priority="medium" estimated="3h">
+          <title>Code quality and documentation</title>
+          <description>Ensure code quality standards and comprehensive documentation</description>
+          <requirements>
+            <requirement>ktlint and detekt compliance</requirement>
+            <requirement>Code coverage requirements (80%+)</requirement>
+            <requirement>API documentation</requirement>
+            <requirement>Architecture documentation</requirement>
+            <requirement>Deployment guides</requirement>
+          </requirements>
+          <dependencies>
+            <dependency>T8.1</dependency>
+          </dependencies>
+          <deliverables>
+            <deliverable>Code quality reports</deliverable>
+            <deliverable>Comprehensive documentation</deliverable>
+            <deliverable>Deployment automation</deliverable>
+            <deliverable>Quality gates configuration</deliverable>
+          </deliverables>
+          <verification>
+            <criterion>Code quality standards met</criterion>
+            <criterion>Documentation is complete and accurate</criterion>
+            <criterion>Deployment process is automated</criterion>
+          </verification>
+          <antiCheatChecks>
+            <check>Quality metrics must be genuine</check>
+            <check>Documentation must be accurate and complete</check>
+            <check>No shortcuts in quality assurance</check>
+          </antiCheatChecks>
+        </task>
+      </tasks>
+      <gitCommitRequired>true</gitCommitRequired>
+      <codeReviewRequired>true</codeReviewRequired>
+    </milestone>
+  </milestones>
+
+  <continuousRequirements>
+    <requirement name="automatic-progression">
+      <description>LLM must automatically proceed to next work item after completing previous one</description>
+      <enforcement>mandatory</enforcement>
+    </requirement>
+    <requirement name="no-stopping">
+      <description>No stopping between milestones - continuous progression required</description>
+      <enforcement>mandatory</enforcement>
+    </requirement>
+    <requirement name="git-commit-milestones">
+      <description>Must git commit after completing each milestone</description>
+      <enforcement>mandatory</enforcement>
+    </requirement>
+    <requirement name="all-tests-pass">
+      <description>All tests must pass before claiming any task completion</description>
+      <enforcement>mandatory</enforcement>
+    </requirement>
+    <requirement name="code-review-milestones">
+      <description>LLM must review code against requirements after each milestone</description>
+      <enforcement>mandatory</enforcement>
+    </requirement>
+  </continuousRequirements>
+
+  <qualityGates>
+    <gate id="unit-tests" milestone="all">
+      <description>All unit tests must pass</description>
+      <criteria>
+        <criterion>Test coverage > 80%</criterion>
+        <criterion>No failing tests</criterion>
+        <criterion>No disabled or skipped tests</criterion>
+      </criteria>
+    </gate>
+    <gate id="integration-tests" milestone="M2,M4,M5,M6,M7">
+      <description>Integration tests must pass</description>
+      <criteria>
+        <criterion>API integration tests pass</criterion>
+        <criterion>Database integration tests pass</criterion>
+        <criterion>UI integration tests pass</criterion>
+      </criteria>
+    </gate>
+    <gate id="code-quality" milestone="all">
+      <description>Code quality standards must be met</description>
+      <criteria>
+        <criterion>ktlint passes without warnings</criterion>
+        <criterion>detekt passes without violations</criterion>
+        <criterion>No TODO or FIXME comments</criterion>
+      </criteria>
+    </gate>
+    <gate id="performance" milestone="M4,M5,M6,M8">
+      <description>Performance requirements must be met</description>
+      <criteria>
+        <criterion>API response time < 500ms</criterion>
+        <criterion>UI rendering < 100ms</criterion>
+        <criterion>Memory usage within acceptable limits</criterion>
+      </criteria>
+    </gate>
+  </qualityGates>
+
+  <instructions>
+    <instruction priority="critical">
+      <title>Anti-Cheating Enforcement</title>
+      <description>
+        The LLM MUST NOT cheat, lie about completeness, or use hardcoded/mocked data.
+        Before starting any task, verify all tests pass.
+        Before claiming completion, verify all tests still pass.
+        Never disable or remove existing tests.
+        All functionality must be genuine and fully implemented.
+      </description>
+    </instruction>
+    <instruction priority="critical">
+      <title>Testing Requirements</title>
+      <description>
+        All tests must pass at all times before claiming task completion.
+        No test disabling is allowed.
+        Previous tests cannot be modified to pass artificially.
+        Tests must verify real functionality, not mock implementations.
+      </description>
+    </instruction>
+    <instruction priority="high">
+      <title>Code Review Requirements</title>
+      <description>
+        After each milestone, the LLM must review the code against requirements.
+        Check that code is not over-engineered beyond requirements.
+        Verify adherence to app guidelines and best practices.
+        Ensure maximum code sharing in Kotlin common modules.
+      </description>
+    </instruction>
+    <instruction priority="high">
+      <title>Automatic Progression</title>
+      <description>
+        The LLM must automatically move to the next work item after completing the current one.
+        No stopping between milestones is allowed.
+        Must git commit on milestone completion.
+        Continuous progression through all work items is required.
+      </description>
+    </instruction>
+    <instruction priority="medium">
+      <title>Material Design</title>
+      <description>
+        Use Material Design 3 for all UI implementations.
+        Ensure consistent design across all platforms.
+        Follow platform-specific design guidelines while maintaining common components.
+      </description>
+    </instruction>
+  </instructions>
+</workBreakdown>
